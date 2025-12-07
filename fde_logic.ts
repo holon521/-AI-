@@ -1,5 +1,6 @@
 
-// ZIA FDE ENGINE (Muveraphy Port) v1.0
+// ZIA FDE ENGINE (Muveraphy Port) v1.1
+// [v1.1] Added Mathematical Distance & Similarity Metrics (Topology Foundation)
 
 function stringToSeed(str: string): number {
   let hash = 0;
@@ -48,15 +49,42 @@ export function computeSimHashSignature(text: string, dimension: number = 64): s
     const projectionMatrix = generateGaussianMatrix(128, dimension, 42);
     
     let signature = 0;
-    for(let j=0; j<dimension; j++) {
+    bigLoop: for(let j=0; j<dimension; j++) {
         let sum = 0;
         for(let i=0; i<128; i++) {
             sum += vector[i] * projectionMatrix[i][j];
         }
+        // Javascript bitwise operations are 32-bit. 
+        // For simulation, we keep it simple. Real implementation needs BigInt for >32 dim.
+        if (j >= 32) break bigLoop; 
+        
         signature = appendToGrayCode(signature, sum > 0);
     }
     
-    return signature.toString(16).toUpperCase();
+    // Convert to Hex (Padding ensures fixed length look)
+    return (signature >>> 0).toString(16).toUpperCase().padStart(8, '0');
+}
+
+// [v1.1] Hamming Distance Calculation (Topological Distance)
+// 두 지식(FDE 서명) 사이의 거리를 계산하여, 의미적으로 얼마나 가까운지 수학적으로 판별함.
+export function computeHammingDistance(sig1: string, sig2: string): number {
+    let val1 = parseInt(sig1, 16);
+    let val2 = parseInt(sig2, 16);
+    let xor = val1 ^ val2;
+    let distance = 0;
+    
+    while (xor > 0) {
+        distance += xor & 1;
+        xor >>= 1;
+    }
+    return distance;
+}
+
+// [v1.1] Similarity Score (0.0 ~ 1.0)
+// 해밍 거리를 정규화하여 유사도 점수 반환. (거리가 0이면 유사도 1.0)
+export function computeSimilarity(sig1: string, sig2: string, dimension: number = 32): number {
+    const distance = computeHammingDistance(sig1, sig2);
+    return 1.0 - (distance / dimension);
 }
 
 export function calculateLogicDensity(text: string): number {
@@ -66,10 +94,15 @@ export function calculateLogicDensity(text: string): number {
     
     const entropy = (uniqueChars / length) * Math.log2(length);
     
-    const keywords = ['따라서', '그러므로', 'because', 'if', 'then', 'sum', 'matrix', 'define'];
+    // 논리적 연결어 가중치 (한글/영어)
+    const keywords = [
+        '따라서', '그러므로', '왜냐하면', '결론적으로', '하지만', '반면',
+        'because', 'if', 'then', 'therefore', 'however', 'implies', 'axiom',
+        'sum', 'matrix', 'define', 'proof'
+    ];
     let logicBoost = 0;
     keywords.forEach(kw => {
-        if (text.toLowerCase().includes(kw)) logicBoost += 0.1;
+        if (text.toLowerCase().includes(kw)) logicBoost += 0.05;
     });
 
     return Math.min(1.0, (entropy / 8) + logicBoost);

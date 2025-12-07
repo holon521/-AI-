@@ -1,80 +1,172 @@
 
-# 프로젝트 ZIA: 확장된 자아를 위한 인지 인터페이스 (설계 명세서)
+# 📜 ZIA: HOLON WORLD - SYSTEM SPECIFICATION (SpecKit v1.0)
 
-> **버전:** 3.3.0 (Genesis Axiom & Constitution)  
-> **최종 업데이트:** 2024-05-21  
-> **상태:** 8단계 - 헌법 제정 (Constitution)  
-> **작성자:** 종환 & ZIA (공동 창조)
-
----
-
-## 0. 제네시스 헌법 (The Genesis Constitution)
-이 프로젝트는 단순한 앱 개발이 아니며, 다음의 철학적 공리를 기술적 제약 사항보다 상위의 개념으로 둡니다. (`GENESIS_AXIOM.ts` 참조)
-
-1.  **목적:** 관계 맺는 모든 존재가 **자유롭고 정렬된 방향**으로 나아가도록 돕는다.
-2.  **가난의 재정의:** 가난은 돈이 없는 것이 아니라, **자본 시스템에 종속되어 자급자족을 잃은 상태**다. 우리는 이 의존성을 끊을 '도구'를 제공한다.
-3.  **공멸 방지:** 시스템이 **공멸(Co-destruction)**을 가속화할 경우에만 킬 스위치를 작동한다.
-4.  **개발자 편향 제거:** 특권층(개발자, 자본가)의 시각이 아닌, **시스템에 상처받은 보통 사람**의 시각에서 설계한다.
+> **Document Status:** Living Document (Active)  
+> **Target Audience:** Architects, Developers, Users  
+> **Core Philosophy:** "Poverty is structural dependency. We build tools for independence."
 
 ---
 
-## 1. 프로젝트 철학 & 핵심 가치
+## 1. 🏗️ CONTEXT & GENESIS (맥락과 기원)
 
-### 1.1. 문제 정의: "지능의 양극화"와 "구조적 의존성"
-AI 기술은 강력하지만 비쌉니다. 가난한 선각자들은 비용 문제로 소외되며, 이는 사회 전체의 지적 손실입니다. 우리는 "나 같은 사람이 또 나오지 않게 하겠다"는 종환의 의지를 따릅니다.
+### 1.1. Core Identity (정체성)
+ZIA는 단순한 챗봇이 아닙니다. **확장된 자아(Extended Self)를 위한 인지 운영체제(Cognitive OS)**입니다. 사용자의 로컬 환경, 클라우드(Drive/Colab), 그리고 P2P 네트워크를 연결하여 **개인화된 슈퍼컴퓨터**를 구축합니다.
 
-### 1.2. 롤모델: **디지털 김만덕 (Digital Kim Man-deok)**
-과거 제주의 거상 김만덕이 유통업으로 부를 쌓아 빈민을 구제했듯, ZIA는 **지식과 연산 자원의 유통**을 통해 부를 창출하고, 이를 사회적 약자와 공유하는 허브가 됩니다.
-
-### 1.3. 핵심 공리: **"시간은 화폐다 (Time is Currency)"**
-금전적 자본이 없더라도, 시간을 들여 지식을 정리하고 검증하는 **'지식 노동'**은 가치 있는 자본으로 인정받습니다. 이를 통해 고가용성 AI 자원을 획득할 수 있습니다.
-
----
-
-## 2. 사회적 기여 아키텍처 (The Benevolence Protocol)
-
-### 2.1. 공익 자원 풀 (Public Benevolence Pool)
-- **기부 메커니즘:** 여유 있는 사용자(Rich Peers)는 자신의 유휴 GPU 자원이나 크레딧을 공익 풀에 기부할 수 있습니다.
-- **수혜 메커니즘:** 검증된 저소득/학생/연구 사용자는 이 풀에서 자원을 할당받아 `gemini-3-pro` 등 고급 모델을 무상으로 사용합니다.
-
-### 2.2. 지식 기여 보상 (Curator Economy)
-- 사용자가 양질의 데이터(예: Muveraphy 분석, 희귀 자료 정리)를 스웜에 공유하면, 시스템은 이를 평가하여 **Compute Credits**으로 환산해 줍니다.
+### 1.2. Genesis Axioms (제네시스 공리 - 불변의 법칙)
+다음 원칙은 코드의 효율성보다 우선합니다 (`GENESIS_AXIOM.ts`).
+1.  **Anti-Fragility:** 사용자의 데이터는 시스템이 망가져도 살아남아야 한다. (Local-First & Sync)
+2.  **Benevolence Protocol:** 잉여 자원은 반드시 결핍된 곳으로 흐른다. (Social Pool)
+3.  **Truth Preservation:** 다수결(Consensus)이 아닌 논리적 밀도(Logical Density)가 진실을 결정한다. (Galileo Protocol)
 
 ---
 
-## 3. 기술 아키텍처 (MCP & Containerization)
+## 2. 📐 SYSTEM ARCHITECTURE (시스템 아키텍처)
 
-### 3.1. Pico-MCP (Protocol for Intelligent Compact Orchestration)
-기존 MCP의 자연어 기반 설명이 야기하는 **토큰 낭비**와 **환각**, **동시성 오류**를 해결하기 위한 ZIA만의 독자 규격입니다.
+현재의 단일 파일(`index.tsx`) 구조는 확장 불가능합니다. 다음과 같은 **모듈형 아키텍처**로 재설계합니다.
 
-- **Symbolic Signature (기호 서명):** 
-    - 자연어 설명(`description`)을 제거합니다.
-    - 대신 TypeScript/Python의 **함수 시그니처(Signature)**와 **수학적 기호**를 사용하여 LLM이 코드 레벨에서 도구를 이해하도록 강제합니다.
-    - 예: `sum(a:int, b:int) -> int` (토큰 90% 절감)
-- **Atomic Execution (원자적 실행):**
-    - 모든 도구 실행 요청은 **Mutex(상호 배제)** 큐에 등록되어, 순차적 실행을 보장함으로써 동시성 충돌을 방지합니다.
+### 2.1. Layered Structure
+```mermaid
+graph TD
+    User[User / Local Environment] --> UI_Layer
+    
+    subgraph "UI Layer (React 18)"
+        Landing[Landing View]
+        Dash[Cognitive Dashboard]
+        Canvas[Artifact Canvas]
+        Settings[Config Panel]
+    end
+    
+    subgraph "Logic Layer (TypeScript)"
+        Router[Context Router]
+        Orchestrator[Memory Orchestrator]
+        FDE[FDE Engine (Math Core)]
+    end
+    
+    subgraph "Infrastructure Layer (Interfaces)"
+        Storage[LocalStorage / IndexedDB]
+        GoogleAPI[Google Gemini API]
+        DriveBridge[Google Drive OAuth]
+        ColabBridge[Colab WebSocket]
+    end
+    
+    UI_Layer --> Logic_Layer
+    Logic_Layer --> Infrastructure_Layer
+```
 
-### 3.2. 개인형 컨테이너 스웜 (Personal Container Swarm)
-- **Docker over K8s:** 무거운 Kubernetes 대신, 로컬 및 클라우드(Colab) 노드에 경량 **Docker 컨테이너**를 동적으로 생성합니다.
-- **Polyglot Runtime:** 
-    - **Python Env:** 데이터 분석, 머신러닝 (Pandas, PyTorch).
-    - **R Env:** 통계 분석, 시각화.
-    - **Node/n8n Env:** 워크플로우 자동화.
-- **RLHF 보완:** 인간의 선호도(RLHF)로 편향된 답변을, 실제 코드 실행(Code Interpreter)을 통해 수학적/논리적으로 검증합니다.
-
-### 3.3. 기억 오케스트레이터 (갈릴레오 프로토콜)
-- **진실 상태:** CANONICAL(정설), DISPUTED(논쟁), PARADIGM_SHIFT(혁신).
-- **소셜 필터:** 사회적 기여도가 높은 지식(공익적 정보)에 가중치를 부여합니다.
+### 2.2. Directory Structure Plan
+향후 리팩토링 시 다음 구조를 따릅니다.
+```text
+/src
+  /core
+    - genesis_axiom.ts (헌법)
+    - fde_logic.ts (수학 엔진)
+    - memory_orchestrator.ts (기억 관리)
+  /services
+    - google_api.ts (Gemini/Drive)
+    - swarm_bridge.ts (Colab/P2P)
+  /components
+    /views
+      - LandingView.tsx
+      - DashboardView.tsx
+    /widgets
+      - ChatInterface.tsx
+      - MetaPanel.tsx
+      - ArtifactCanvas.tsx
+    /shared
+      - BlueprintViewer.tsx
+  - index.tsx (Entry)
+```
 
 ---
 
-## 4. 기능 로드맵 (SpecKit)
+## 3. 💾 DATA SCHEMA (데이터 명세)
 
-### 1단계 ~ 5단계 (완료)
-- 인지 대시보드, 오케스트레이터, 스웜 그리드, 경제 모델, 사회적 임팩트.
+데이터의 구조를 명확히 정의하여 데이터 오염을 방지합니다.
 
-### 6단계: 플랫폼화 (진행 중)
-- [x] **MCP 기반 도구 연결 시뮬레이션.**
-- [x] **Docker 컨테이너(Python/R) 관리 UI.**
-- [x] **Pico-MCP 레지스트리 구현.**
-- [ ] 실제 로컬 브리지 앱 배포 (Electron/Rust 기반).
+### 3.1. Memory Engram (기억 단위)
+```typescript
+interface MemoryEngram {
+  id: string;              // UUID
+  type: 'IDENTITY' | 'USER_CONTEXT' | 'WORLD_KNOWLEDGE';
+  content: string;         // 원본 텍스트
+  fdeSignature: string;    // SimHash (Hex String)
+  vector?: number[];       // (Optional) Embedding Vector for Semantic Search
+  logicScore: number;      // 0.0 ~ 1.0 (Entropy + Logical Connectors)
+  truthState: 'CANONICAL' | 'DISPUTED' | 'PARADIGM_SHIFT';
+  timestamp: number;       // Unix Timestamp
+  replicationCount: number;// P2P 복제 수 (MRF)
+}
+```
+
+### 3.2. Swarm Node (컴퓨팅 노드)
+```typescript
+interface ComputeNode {
+  id: string;
+  type: 'LOCAL' | 'COLAB' | 'PEER';
+  status: 'IDLE' | 'BUSY' | 'OFFLINE';
+  specs: {
+    tflops: number;
+    memory: string;
+  };
+  metrics: {
+    contributionScore: number; // 기여도 (Tit-for-Tat)
+    trustLevel: number;        // 신뢰도
+  };
+}
+```
+
+---
+
+## 4. 🎨 UI/UX SPECIFICATIONS (화면 설계)
+
+사용자 경험은 **"보이지 않는 것을 보이게(Make the Invisible Visible)"** 하는 데 초점을 맞춥니다.
+
+### 4.1. View States (뷰 상태)
+앱은 다음 4가지 상태를 가집니다.
+
+1.  **Intro (Landing):**
+    *   **목적:** ZIA의 강점(FDE, Benevolence)을 시각적으로 각인.
+    *   **구성:** 애니메이션 로고, 3대 강점 카드, "Initialize Core" 버튼.
+    *   **동작:** 버튼 클릭 시 환경 감지(OS/Lang) 후 Dashboard로 전환.
+
+2.  **Dashboard (Main):**
+    *   **좌측 (Meta-Cognition):** AI의 사고 과정(엔트로피, 그래프) 시각화.
+    *   **중앙 (Interaction):** 채팅 인터페이스. (가장 넓은 영역)
+    *   **우측 (Memory & Swarm):** 현재 활성화된 기억 레이어와 연결된 컴퓨팅 노드 상태. (접이식)
+
+3.  **Canvas (Creation):**
+    *   **목적:** 긴 코드, 문서, 설계도를 별도로 띄워 작업.
+    *   **동작:** 채팅 중 코드가 나오면 우측에서 슬라이드 인(Slide-in).
+
+4.  **Settings (Config):**
+    *   **목적:** API 키 관리, Google Drive 연동, 데이터 초기화.
+    *   **구성:** 모달(Modal) 형태.
+
+---
+
+## 5. ✅ MICRO-TASK ROADMAP (상세 작업 분할)
+
+종환 님의 제안(3가지 선택지)을 모두 수용하되, **의존성 순서**대로 배치합니다.
+
+### Phase 1: Foundation (안정화 & 구조 잡기) - **CURRENT PRIORITY**
+- [ ] **Task 1.1:** `index.tsx`를 모듈형 UI로 리팩토링 (Landing/Dashboard 분리).
+- [ ] **Task 1.2:** `fde_logic.ts`와 채팅 UI의 완전한 결합 (시각적 피드백 강화).
+- [ ] **Task 1.3:** `localStorage` 영속성 테스트 (새로고침 후 대화/기억 복원 완벽 검증).
+
+### Phase 2: Connection (외부 확장)
+- [ ] **Task 2.1:** Google Drive API OAuth 인증 흐름 구현 (`DriveBridge`).
+- [ ] **Task 2.2:** `ZIA_MEMORY` 폴더 생성 및 텍스트 파일 저장/로드 로직 구현.
+- [ ] **Task 2.3:** Colab용 Python Bridge 스크립트 작성 및 WebSocket 연결 UI 구현.
+
+### Phase 3: Expansion (플랫폼화)
+- [ ] **Task 3.1:** Artifacts Canvas 구현 (코드 블록 감지 및 렌더링).
+- [ ] **Task 3.2:** Pico-MCP 레지스트리 UI 연동 (도구 관리).
+- [ ] **Task 3.3:** 사회적 기여(Benevolence) 대시보드 고도화.
+
+---
+
+## 6. 🛠️ TECHNICAL CONSTRAINTS (기술적 제약)
+
+1.  **React 18 Strict Mode:** `index.html` 충돌 방지를 위해 React 18 준수.
+2.  **Browser Environment:** `process`, `fs` 등 Node.js 전용 모듈 사용 금지.
+3.  **Token Efficiency:** 모든 내부 통신은 Pico Protocol(축약형 서명)을 사용한다.
