@@ -1,78 +1,141 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GoogleGenAI } from "@google/genai";
 import { muveraphy_core_knowledge, KnowledgeNode, system_instruction_augmentation } from './knowledge_archive';
 import { orchestrator, MemoryType } from './memory_orchestrator';
 import { swarm, ComputeNode, NodeType, RuntimeEnv } from './compute_swarm';
-import { picoRegistry, PicoTool } from './mcp_pico_registry'; // [New] Pico 프로토콜 임포트
+import { picoRegistry, PicoTool } from './mcp_pico_registry'; 
+import { GENESIS_CONSTITUTION } from './GENESIS_AXIOM'; 
+import { computeSimHashSignature } from './fde_logic'; // FDE 엔진 임포트
 
 // --- 타입 및 인터페이스 정의 (Types & Interfaces) ---
 interface Message {
   id: string;
-  role: 'user' | 'model' | 'system'; // 사용자, AI 모델, 시스템 메시지
+  role: 'user' | 'model' | 'system'; 
   text: string;
   timestamp: Date;
   metadata?: {
-    modelUsed?: string; // 사용된 모델 (예: gemini-3-pro)
-    activeMemorySectors?: MemoryType[]; // 활성화된 기억 영역
-    retrievedFromSwarm?: boolean; // 스웜에서 가져온 지식인지 여부
-    truthState?: string; // [v1.3] 진실 상태 (CANONICAL, PARADIGM_SHIFT 등)
-    subsidized?: boolean; // [v1.4] 공익 풀 지원 여부
-    executedEnv?: RuntimeEnv; // [v1.5] 실행된 환경 (컨테이너)
-    picoEfficiency?: number; // [v1.6] Pico 프로토콜 효율성
+    modelUsed?: string; 
+    activeMemorySectors?: MemoryType[]; 
+    retrievedFromSwarm?: boolean; 
+    truthState?: string; 
+    subsidized?: boolean; 
+    executedEnv?: RuntimeEnv; 
+    picoEfficiency?: number; 
+    fdeSignature?: string; // FDE 서명 메타데이터 추가
   };
 }
 
-// 인지 그래프의 노드 상태
 interface GraphNode {
   id: string;
   label: string;
-  status: 'idle' | 'active' | 'completed'; // 대기중, 처리중, 완료됨
+  status: 'idle' | 'active' | 'completed'; 
+}
+
+// [v1.7] 사용자 환경 정보 인터페이스
+interface UserEnvironment {
+  os: 'Windows' | 'Mac' | 'Linux' | 'Android' | 'iOS' | 'Unknown';
+  language: string; 
+  browser: string;
+  isLegacyPathRisk: boolean; 
 }
 
 // --- 설정 (Configuration) ---
 const API_KEY = process.env.API_KEY; 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
+// --- 유틸리티: 환경 감지 함수 ---
+const detectSystemEnv = (): UserEnvironment => {
+  const userAgent = navigator.userAgent;
+  let os: UserEnvironment['os'] = 'Unknown';
+  if (userAgent.indexOf("Win") !== -1) os = "Windows";
+  else if (userAgent.indexOf("Mac") !== -1) os = "Mac";
+  else if (userAgent.indexOf("Linux") !== -1) os = "Linux";
+  else if (userAgent.indexOf("Android") !== -1) os = "Android";
+  else if (userAgent.indexOf("like Mac") !== -1) os = "iOS";
+
+  const language = navigator.language || 'en-US';
+  
+  const isLegacyPathRisk = os === 'Windows' && language.startsWith('ko');
+
+  return {
+    os,
+    language,
+    browser: navigator.userAgent,
+    isLegacyPathRisk
+  };
+};
+
 // --- 컴포넌트 (Components) ---
 
-// 1. 좌측 패널: 메타 인지 (수학적 원격 측정 & Pico 효율성)
+// 1. 좌측 패널: 메타 인지 (수학적 원격 측정 & Pico 효율성 & 헌법 & 환경 감지)
 const MetaCognitionPanel = ({ 
   currentModel, 
   graphNodes,
-  isThinking
+  isThinking,
+  userEnv 
 }: { 
   currentModel: string, 
   graphNodes: GraphNode[],
-  isThinking: boolean
+  isThinking: boolean,
+  userEnv: UserEnvironment
 }) => {
   const [tokenSavings, setTokenSavings] = useState(0);
 
   useEffect(() => {
-      // Pico 레지스트리의 효율성 계산
       setTokenSavings(picoRegistry.calculateEfficiency());
   }, []);
 
   return (
     <div className="w-64 bg-slate-950 border-r border-slate-900 flex flex-col h-full flex-shrink-0 z-20 shadow-xl font-mono">
-      {/* 헤더: 시스템 상태 */}
+      {/* 헤더: 시스템 상태 & 헌법 로드 */}
       <div className="p-4 border-b border-slate-900 bg-slate-950/50">
         <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Mathematical Core</h2>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-2">
            <div className="flex items-center space-x-2">
             <div className={`w-1.5 h-1.5 rounded-full ${API_KEY ? 'bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.6)]' : 'bg-red-500'}`}></div>
             <span className="text-xs text-slate-300">
-              AXIOMS LOADED (공리 로드됨)
+              AXIOMS LOADED
             </span>
           </div>
-          <span className="text-[9px] text-slate-600">v3.2.0-PICO</span>
+          <span className="text-[9px] text-slate-600">v4.0.0-INTEGRAL</span>
+        </div>
+        
+        {/* 제네시스 헌법 시각화 */}
+        <div className="bg-purple-900/10 border border-purple-500/30 p-2 rounded mb-2">
+             <div className="flex items-center space-x-1 mb-1">
+                 <span className="material-symbols-outlined text-[10px] text-purple-400">verified</span>
+                 <span className="text-[9px] text-purple-300 font-bold">GENESIS CONSTITUTION</span>
+             </div>
+             <div className="text-[8px] text-purple-400/80 leading-tight">
+                 "LIBERATE AND ALIGN"
+             </div>
+        </div>
+
+        {/* [v1.7] 호스트 환경 감지 시각화 */}
+        <div className={`p-2 rounded border ${userEnv.isLegacyPathRisk ? 'bg-amber-900/10 border-amber-500/30' : 'bg-slate-900/30 border-slate-800'}`}>
+            <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] text-slate-500 font-bold uppercase">Host Environment</span>
+                <span className="text-[8px] text-slate-600">{userEnv.language}</span>
+            </div>
+            <div className="flex items-center space-x-2 text-[10px] text-slate-300">
+                <span className="material-symbols-outlined text-[12px]">
+                    {userEnv.os === 'Windows' ? 'window' : userEnv.os === 'Mac' ? 'laptop_mac' : 'terminal'}
+                </span>
+                <span>{userEnv.os} Detected</span>
+            </div>
+            {userEnv.isLegacyPathRisk && (
+                <div className="mt-1 text-[8px] text-amber-500 leading-tight flex items-start">
+                    <span className="material-symbols-outlined text-[8px] mr-1 mt-0.5">warning</span>
+                    Windows 한글 경로 위험 감지됨. 파이썬 실행 주의.
+                </div>
+            )}
         </div>
       </div>
 
       {/* 수학적 원격 측정 (Math Telemetry) */}
       <div className="p-4 border-b border-slate-900/50">
-        <h3 className="text-[9px] text-slate-600 uppercase mb-2 font-bold tracking-wider">Neural Telemetry (신경망 측정)</h3>
+        <h3 className="text-[9px] text-slate-600 uppercase mb-2 font-bold tracking-wider">Neural Telemetry</h3>
         <div className="space-y-2">
            {/* 지표 1: 고유값 안정성 */}
            <div className="bg-slate-900/50 p-2 rounded border border-slate-800">
@@ -87,18 +150,7 @@ const MetaCognitionPanel = ({
              </div>
            </div>
 
-           {/* 지표 2: 위상 지속성 */}
-           <div className="bg-slate-900/50 p-2 rounded border border-slate-800">
-             <div className="flex justify-between text-[9px] text-slate-400 mb-1">
-               <span>위상 지속성 (Persistence)</span>
-               <span className="text-purple-400">∞</span>
-             </div>
-             <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
-                <div className="h-full bg-purple-500 w-[80%]"></div>
-             </div>
-           </div>
-
-           {/* 지표 3: Pico 프로토콜 효율성 (New) */}
+           {/* 지표 3: Pico 프로토콜 효율성 */}
            <div className="bg-slate-900/50 p-2 rounded border border-slate-800">
              <div className="flex justify-between text-[9px] text-slate-400 mb-1">
                <span>Pico Efficiency (Tokens)</span>
@@ -107,30 +159,13 @@ const MetaCognitionPanel = ({
              <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
                 <div className="h-full bg-emerald-500 w-[90%]"></div>
              </div>
-             <div className="mt-1 text-[8px] text-slate-600">
-                 자연어 설명 제거로 컨텍스트 최적화됨
-             </div>
            </div>
-        </div>
-      </div>
-
-      {/* 현재 활성화된 모델 */}
-      <div className="p-4">
-        <h3 className="text-[9px] text-slate-600 uppercase mb-2 font-bold tracking-wider">Active Cortex (활성 피질)</h3>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800/50">
-          <div className="flex items-center justify-between text-cyan-400 mb-2">
-            <span className="material-symbols-outlined text-sm">psychology</span>
-            <span className="text-[10px] font-bold">{currentModel}</span>
-          </div>
-          <div className="w-full bg-slate-800 h-0.5 rounded-full overflow-hidden">
-            <div className="bg-cyan-500 h-full w-full animate-pulse"></div>
-          </div>
         </div>
       </div>
 
       {/* 인지 그래프 시각화 */}
       <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
-        <h3 className="text-[9px] text-slate-600 uppercase mb-3 font-bold tracking-wider">Cognitive Graph (인지 흐름)</h3>
+        <h3 className="text-[9px] text-slate-600 uppercase mb-3 font-bold tracking-wider">Cognitive Graph</h3>
         <div className="space-y-4 relative pl-1">
           <div className="absolute left-[15px] top-2 bottom-4 w-px bg-slate-800/50"></div>
           {graphNodes.map((node, idx) => (
@@ -212,32 +247,13 @@ const ContextPanel = ({
                         <span className="w-1 h-1 bg-green-500 rounded-full mr-1"></span>
                         Drive & Colab Ready
                     </span>
-                    {/* 관리자 권한 표시 */}
                     <span className="text-[8px] text-purple-500 flex items-center mt-1">
                         <span className="material-symbols-outlined text-[10px] mr-0.5">verified_user</span>
-                        Creator (Genesis)
+                        Genesis Creator
                     </span>
                 </div>
              </div>
-             {/* Pico Tools (MCP) List */}
-             <div className="mt-2">
-                 <h4 className="text-[9px] text-slate-500 mb-1 flex items-center">
-                    <span className="material-symbols-outlined text-[10px] mr-1">extension</span>
-                    Pico-MCP Tools (Active)
-                 </h4>
-                 <div className="space-y-1">
-                     {picoTools.map(tool => (
-                         <div key={tool.id} className="bg-slate-900/30 p-1.5 rounded border border-slate-800/50 flex flex-col">
-                             <div className="flex justify-between items-center">
-                                 <span className="text-[9px] text-cyan-400 font-bold">{tool.name}</span>
-                                 <span className="text-[8px] text-slate-600">{tool.cost} Tok</span>
-                             </div>
-                             <span className="text-[8px] text-slate-500 truncate font-mono mt-0.5">{tool.signature}</span>
-                         </div>
-                     ))}
-                 </div>
-             </div>
-
+             
              {/* 김만덕 프로토콜 표시 */}
              <div className="flex items-center space-x-2 bg-amber-900/20 p-2 rounded border border-amber-800/50 mt-1">
                 <span className="material-symbols-outlined text-amber-500 text-base">volunteer_activism</span>
@@ -258,7 +274,7 @@ const ContextPanel = ({
       
       {/* 기억 매트릭스 시각화 */}
       <div className="flex-1 p-4 space-y-4 overflow-y-auto custom-scrollbar">
-        <h3 className="text-[9px] text-slate-600 uppercase font-bold tracking-wider mb-2">Memory Manifolds (기억 다양체)</h3>
+        <h3 className="text-[9px] text-slate-600 uppercase font-bold tracking-wider mb-2">Memory Manifolds (FDE Enabled)</h3>
         
         {/* 1계층: 정체성 */}
         <div className={`p-3 rounded-lg border transition-all duration-500 ${
@@ -267,11 +283,11 @@ const ContextPanel = ({
             : 'bg-slate-900/30 border-slate-800'
         }`}>
             <div className="flex justify-between items-center mb-2">
-                <span className={`text-[10px] font-bold uppercase ${activeSectors.includes('IDENTITY') ? 'text-purple-400' : 'text-slate-500'}`}>Layer 1: Identity Axioms</span>
+                <span className={`text-[10px] font-bold uppercase ${activeSectors.includes('IDENTITY') ? 'text-purple-400' : 'text-slate-500'}`}>Layer 1: Identity</span>
                 <span className="text-[9px] text-slate-600">{stats.identity} Nodes</span>
             </div>
             <div className="text-[10px] text-slate-500 leading-relaxed">
-                불변의 핵심 자아. 범주론적 객체. (Semi-Shared)
+                Immutable Core Axioms. Protected by Constitution.
             </div>
         </div>
 
@@ -282,13 +298,12 @@ const ContextPanel = ({
             : 'bg-slate-900/30 border-slate-800'
         }`}>
             <div className="flex justify-between items-center mb-2">
-                <span className={`text-[10px] font-bold uppercase ${activeSectors.includes('USER_CONTEXT') ? 'text-blue-400' : 'text-slate-500'}`}>Layer 2: User Manifold</span>
+                <span className={`text-[10px] font-bold uppercase ${activeSectors.includes('USER_CONTEXT') ? 'text-blue-400' : 'text-slate-500'}`}>Layer 2: User Context</span>
                 <span className="text-[9px] text-slate-600">{stats.user} Nodes</span>
             </div>
             <div className="text-[10px] text-slate-500 leading-relaxed">
                 <span className="text-red-400 font-bold mr-1">[PRIVATE]</span>
-                개인 역사. 동형 암호화로 보호됨. 절대 공유 불가.
-                <br/><span className="text-[8px] text-slate-600 mt-1 block">* 설계자(Creator)도 접근 불가</span>
+                Homomorphic Encrypted. FDE Compressed.
             </div>
         </div>
 
@@ -305,24 +320,23 @@ const ContextPanel = ({
                      <span className="material-symbols-outlined text-[10px] mr-0.5">share</span>
                      {stats.swarmTotal}
                    </span>
-                   <span className="text-[9px] text-slate-600"> / {stats.world} Local</span>
                 </div>
             </div>
             <div className="text-[10px] text-slate-500 leading-relaxed">
                 <span className="text-emerald-500 font-bold mr-1">[SHARED]</span>
-                집단 지성 네트워크. <strong>갈릴레오 프로토콜</strong> 적용됨 (다수결 배제).
+                Galileo Protocol Active. FDE Hashed.
             </div>
         </div>
       </div>
 
-      {/* 하이퍼-그래프 컴퓨팅 그리드 (경제 상태 표시 추가) */}
+      {/* 하이퍼-그래프 컴퓨팅 그리드 */}
       <div className="p-4 border-t border-slate-900 bg-slate-950/50">
         <div className="flex justify-between items-center mb-3">
              <h3 className="text-[9px] text-slate-600 uppercase font-bold tracking-wider">Hyper-Graph Grid</h3>
              <span className="text-[9px] text-cyan-500 font-mono">{totalTflops.toFixed(1)} TFLOPS</span>
         </div>
 
-        {/* 노드 리스트 (컨테이너 정보 표시) */}
+        {/* 노드 리스트 */}
         <div className="space-y-2 mb-3 max-h-40 overflow-y-auto custom-scrollbar">
             {nodes.length === 0 && <div className="text-[9px] text-slate-600 text-center py-2">연결된 노드 없음</div>}
             {nodes.map(node => (
@@ -350,7 +364,7 @@ const ContextPanel = ({
                         </span>
                     </div>
                     
-                    {/* 실행 중인 컨테이너 목록 표시 */}
+                    {/* 컨테이너 목록 */}
                     {node.containers.length > 0 && (
                         <div className="mt-1 pl-2 border-l border-slate-800 space-y-1">
                             {node.containers.map(ctr => (
@@ -441,7 +455,7 @@ const ChatArea = ({
          <div className="flex items-center space-x-4">
              <span className="flex items-center text-[10px] text-slate-600">
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
-                동형 암호화(Homomorphic Encryption): ON
+                Homomorphic Enc: Active
              </span>
          </div>
       </div>
@@ -459,7 +473,7 @@ const ChatArea = ({
                 </div>
             </div>
             <p className="font-light tracking-[0.2em] text-sm text-slate-400">ZIA ORCHESTRATOR</p>
-            <p className="text-[10px] mt-2 font-mono text-slate-600">신경망 입력을 대기 중...</p>
+            <p className="text-[10px] mt-2 font-mono text-slate-600">Waiting for Neural Input...</p>
           </div>
         )}
         
@@ -490,8 +504,7 @@ const ChatArea = ({
                                 sector === 'USER_CONTEXT' ? 'border-blue-900 text-blue-500 bg-blue-900/10' :
                                 'border-emerald-900 text-emerald-500 bg-emerald-900/10'
                             }`}>
-                                {sector === 'IDENTITY' ? '1계층: 정체성' : 
-                                 sector === 'USER_CONTEXT' ? '2계층: 사용자' : '3계층: 세상'}
+                                {sector}
                             </span>
                         ))}
                         {msg.metadata?.truthState && (
@@ -504,22 +517,21 @@ const ChatArea = ({
                                     {msg.metadata.truthState === 'CANONICAL' ? 'verified' : 
                                      msg.metadata.truthState === 'PARADIGM_SHIFT' ? 'lightbulb' : 'warning'}
                                 </span>
-                                {msg.metadata.truthState === 'CANONICAL' ? '정설 (Canonical)' :
-                                 msg.metadata.truthState === 'PARADIGM_SHIFT' ? '혁신적 진실 (Paradigm Shift)' : '논쟁 중 (Disputed)'}
+                                {msg.metadata.truthState === 'CANONICAL' ? 'Canonical Truth' :
+                                 msg.metadata.truthState === 'PARADIGM_SHIFT' ? 'Paradigm Shift' : 'Disputed'}
                              </span>
                         )}
-                        {/* [v1.4] 공익 자원 지원 표시 */}
+                        {/* FDE 서명 표시 */}
+                        {msg.metadata?.fdeSignature && (
+                            <span className="text-[8px] px-1.5 py-0.5 rounded border border-slate-700 text-slate-500 font-mono flex items-center" title="Fixed Dimensional Encoding Signature">
+                                <span className="material-symbols-outlined text-[8px] mr-1">fingerprint</span>
+                                FDE: {msg.metadata.fdeSignature.substring(0, 8)}...
+                            </span>
+                        )}
                         {msg.metadata?.subsidized && (
                             <span className="text-[8px] px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-400 bg-amber-500/10 flex items-center">
                                 <span className="material-symbols-outlined text-[8px] mr-1">volunteer_activism</span>
-                                Benevolence Fund Supported
-                            </span>
-                        )}
-                         {/* [v1.5] 실행 환경 표시 */}
-                         {msg.metadata?.executedEnv && (
-                            <span className="text-[8px] px-1.5 py-0.5 rounded border border-cyan-500/50 text-cyan-400 bg-cyan-500/10 flex items-center">
-                                <span className="material-symbols-outlined text-[8px] mr-1">terminal</span>
-                                Executed in {msg.metadata.executedEnv}
+                                Subsidized
                             </span>
                         )}
                     </div>
@@ -535,13 +547,13 @@ const ChatArea = ({
             <div className="bg-slate-900/30 border border-slate-800 p-4 rounded-2xl rounded-tl-none flex flex-col space-y-2">
                <div className="flex items-center space-x-3">
                     <span className="material-symbols-outlined text-cyan-400 text-sm animate-spin">progress_activity</span>
-                    <span className="text-xs text-cyan-500 font-mono">변증법적 검증 중 (Dialectical Verify)...</span>
+                    <span className="text-xs text-cyan-500 font-mono">Computing Logic Density...</span>
                </div>
                <div className="pl-7 space-y-1">
                   <div className="h-1 w-24 bg-slate-800 rounded overflow-hidden">
                       <div className="h-full bg-cyan-600 animate-[loading_1s_ease-in-out_infinite]"></div>
                   </div>
-                  <span className="text-[9px] text-slate-600 font-mono block">다수결 배제 및 논리 밀도 계산 중...</span>
+                  <span className="text-[9px] text-slate-600 font-mono block">Verifying via Galileo Protocol...</span>
                </div>
             </div>
           </div>
@@ -555,7 +567,7 @@ const ChatArea = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="명령어 또는 수학적 질의를 입력하십시오..."
+            placeholder="Enter command or query (FDE Enabled)..."
             className="w-full bg-slate-900/50 text-slate-200 rounded-xl pl-4 pr-12 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500/30 border border-slate-800 resize-none h-14 transition-all"
           />
           <button 
@@ -570,16 +582,16 @@ const ChatArea = ({
           <div className="flex items-center space-x-4 text-[10px] text-slate-500">
              <button className="flex items-center hover:text-slate-300 transition-colors">
                 <span className="material-symbols-outlined text-[14px] mr-1.5">upload_file</span>
-                데이터 주입 (Earn Credits)
+                Knowledge Injection
              </button>
              <button className="flex items-center hover:text-slate-300 transition-colors">
                 <span className="material-symbols-outlined text-[14px] mr-1.5">travel_explore</span>
-                웹 검색
+                Web Search
              </button>
           </div>
           <div className="text-[9px] text-slate-600 font-mono flex items-center">
             <span className="w-1 h-1 bg-cyan-900 rounded-full mr-1.5"></span>
-            Orchestrator Mode: Auto
+            Orchestrator: ACTIVE
           </div>
         </div>
       </div>
@@ -587,235 +599,158 @@ const ChatArea = ({
   );
 };
 
-// --- 메인 앱 컨테이너 (App) ---
+// --- App 컴포넌트 (Main Application) ---
 const App = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isThinking, setIsThinking] = useState(false);
-  const [currentModel, setCurrentModel] = useState('gemini-2.5-flash');
-  const [activeMemorySectors, setActiveMemorySectors] = useState<MemoryType[]>([]);
-  const [stats, setStats] = useState(orchestrator.getStats());
-  const [swarmNodes, setSwarmNodes] = useState<ComputeNode[]>(swarm.getActiveNodes());
-  // [v1.4] 공익 풀 상태 관리
-  const [benevolencePool, setBenevolencePool] = useState(swarm.getBenevolencePoolStats());
-
   const [graphNodes, setGraphNodes] = useState<GraphNode[]>([
-    { id: 'input', label: 'Input (입력)', status: 'idle' },
-    { id: 'orchestrator', label: 'Topology Map (위상 지도)', status: 'idle' },
-    { id: 'memory', label: 'Vector Recall (기억 회상)', status: 'idle' },
-    { id: 'compute', label: 'Compute (연산)', status: 'idle' },
+    { id: 'input', label: 'Input Signal', status: 'idle' },
+    { id: 'orchestrator', label: 'Orchestrator', status: 'idle' },
+    { id: 'memory', label: 'Memory Retrieval', status: 'idle' },
+    { id: 'compute', label: 'Compute Swarm', status: 'idle' },
+    { id: 'response', label: 'Response Gen', status: 'idle' }
   ]);
+  const [activeSectors, setActiveSectors] = useState<MemoryType[]>([]);
+  const [memoryStats, setMemoryStats] = useState(orchestrator.getStats());
+  const [swarmNodes, setSwarmNodes] = useState<ComputeNode[]>(swarm.getActiveNodes());
+  const [benevolencePool, setBenevolencePool] = useState(swarm.getBenevolencePoolStats());
+  
+  const userEnv = useRef(detectSystemEnv()).current;
+  const chatRef = useRef<any>(null);
 
-  const handleAddNode = (type: NodeType) => {
-      swarm.connectSimulatedNode(type);
-      setSwarmNodes([...swarm.getActiveNodes()]);
-      setBenevolencePool(swarm.getBenevolencePoolStats()); // 풀 업데이트
+  const updateGraphNode = (id: string, status: GraphNode['status']) => {
+    setGraphNodes(prev => prev.map(n => n.id === id ? { ...n, status } : n));
   };
 
+  const resetGraph = () => {
+    setGraphNodes(prev => prev.map(n => ({ ...n, status: 'idle' })));
+  };
+
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   const handleSendMessage = async (text: string) => {
-    // 1. 사용자 메시지 추가
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      text,
-      timestamp: new Date()
+      text: text,
+      timestamp: new Date(),
+      metadata: { executedEnv: userEnv.os as any }
     };
     setMessages(prev => [...prev, userMsg]);
     setIsThinking(true);
-    
-    // 그래프 초기화
-    setGraphNodes(nodes => nodes.map(n => ({ ...n, status: 'idle' })));
-    setActiveMemorySectors([]);
 
     try {
-      // 1단계: 입력 인지
-      setGraphNodes(nodes => nodes.map(n => n.id === 'input' ? { ...n, status: 'active' } : n));
-      await new Promise(r => setTimeout(r, 200)); 
-      
-      setGraphNodes(nodes => nodes.map(n => 
-        n.id === 'input' ? { ...n, status: 'completed' } : 
-        n.id === 'orchestrator' ? { ...n, status: 'active' } : n
-      ));
+      // 1. Input Processing
+      updateGraphNode('input', 'active');
+      await delay(200);
+      updateGraphNode('input', 'completed');
 
-      // 2단계: 오케스트레이션 (라우팅)
-      const neededMemories = await orchestrator.routeQuery(text);
-      setActiveMemorySectors(neededMemories);
-      
-      // [Swarm Check & Truth Verification]
-      let swarmContent: string | null = null;
-      // 가상의 진실 상태 변수
-      let detectedTruthState = 'CANONICAL'; 
+      // 2. Orchestration
+      updateGraphNode('orchestrator', 'active');
+      const sectors = await orchestrator.routeQuery(text);
+      setActiveSectors(sectors);
+      await delay(200);
+      updateGraphNode('orchestrator', 'completed');
 
-      if (neededMemories.includes('WORLD_KNOWLEDGE')) {
-         swarmContent = orchestrator.searchGlobalSwarm(text);
-         if (swarmContent && swarmContent.includes('PARADIGM_SHIFT')) {
-             detectedTruthState = 'PARADIGM_SHIFT';
-         } else if (swarmContent && swarmContent.includes('DISPUTED')) {
-             detectedTruthState = 'DISPUTED';
-         }
+      // 3. Memory Retrieval
+      updateGraphNode('memory', 'active');
+      const swarmKnowledge = orchestrator.searchGlobalSwarm(text);
+      await delay(300);
+      updateGraphNode('memory', 'completed');
+
+      // 4. Compute / Reasoning
+      updateGraphNode('compute', 'active');
+      // Simulate compute usage
+      await delay(300);
+      updateGraphNode('compute', 'completed');
+
+      // 5. Response Generation
+      updateGraphNode('response', 'active');
+      
+      if (!chatRef.current) {
+        chatRef.current = ai.chats.create({
+          model: 'gemini-2.5-flash',
+          config: {
+            systemInstruction: system_instruction_augmentation,
+          }
+        });
       }
 
-      // [v1.4] 모델 선택 및 공익 자원 사용 로직
-      const usePro = text.length > 50 || neededMemories.includes('WORLD_KNOWLEDGE') || text.includes('math');
-      // 공익 풀에서 자원 사용 시도 (가난한 사용자 시뮬레이션: 항상 보조금 시도)
-      const subsidized = usePro && swarm.useSubsidy(1.0); 
-      setBenevolencePool(swarm.getBenevolencePoolStats()); // UI 업데이트
-
-      const selectedModel = usePro ? 'gemini-3-pro-preview' : 'gemini-2.5-flash';
-      setCurrentModel(selectedModel);
-
-      // [v1.5] 컨테이너 실행 감지 (Python/R)
-      let executedEnv: RuntimeEnv | undefined = undefined;
-      if (text.toLowerCase().includes('python') || text.includes('분석')) {
-          swarm.dispatchTask('PYTHON_SCRIPT');
-          executedEnv = 'PYTHON_3_10';
-          setSwarmNodes([...swarm.getActiveNodes()]);
-      } else if (text.toLowerCase().includes('통계') || text.includes('r ')) {
-          swarm.dispatchTask('R_ANALYSIS');
-          executedEnv = 'R_STATISTICS';
-          setSwarmNodes([...swarm.getActiveNodes()]);
+      let promptToSend = text;
+      let retrieved = false;
+      if (swarmKnowledge) {
+        promptToSend += `\n[Context from Swarm]: ${swarmKnowledge}`;
+        retrieved = true;
       }
 
-      // [v1.6] Pico Protocol: 도구 사용 감지 (시뮬레이션)
-      // 사용자가 "FDE 계산해" 또는 "고유값 구해" 같은 명령을 하면 Atomic Lock을 걸고 실행
-      if (text.toLowerCase().includes('고유값') || text.toLowerCase().includes('fde')) {
-          const toolName = text.toLowerCase().includes('고유값') ? 'EigenSolver' : 'FDE_Compress';
-          picoRegistry.executeToolSafely(toolName, {});
-      }
-
-      await new Promise(r => setTimeout(r, 400)); 
-
-      setGraphNodes(nodes => nodes.map(n => 
-        n.id === 'orchestrator' ? { ...n, status: 'completed' } : 
-        n.id === 'memory' ? { ...n, status: 'active' } : n
-      ));
-
-      // 3단계: 벡터 회상
-      await new Promise(r => setTimeout(r, 300));
+      const result = await chatRef.current.sendMessage({ message: promptToSend });
+      const responseText = result.text;
       
-      setGraphNodes(nodes => nodes.map(n => 
-        n.id === 'memory' ? { ...n, status: 'completed' } : 
-        n.id === 'compute' ? { ...n, status: 'active' } : n
-      ));
+      const fdeSig = computeSimHashSignature(responseText);
 
-      // 4단계: AI 생성
-      let promptText = text;
-      let retrievalMsg = "";
-      // Pico 프로토콜의 압축된 툴 정의 주입
-      const picoPrompt = picoRegistry.getSystemPromptInjection();
-      
-      if (swarmContent) {
-          retrievalMsg = `\n[System Note: 지식 스웜(Noosphere)에서 정보를 인출했습니다. 진실 상태를 확인하십시오: "${swarmContent}"]`;
-          promptText += retrievalMsg;
-      }
-
-      const response = await ai.models.generateContent({
-        model: selectedModel,
-        contents: [
-          { role: 'user', parts: [{ text: promptText }] }
-        ],
-        config: {
-            systemInstruction: `
-              당신은 ZIA, 오케스트레이션된 지능입니다.
-              
-              [사회적 기여 프로토콜 (The Benevolence Protocol)]
-              이 사용자는 "시간"을 투자하여 지식을 탐구하는 진지한 탐구자입니다. 
-              비용 문제로 위축되지 않도록, 공익 자원(Benevolence Pool)이 지원되고 있음을 은연중에 알려주며 격려하십시오.
-              
-              [갈릴레오 프로토콜 적용]
-              다수의 의견이 아닌, 논리적 정합성(Logical Density)을 최우선으로 판단하십시오.
-              스웜에서 가져온 정보가 '패러다임 시프트(Paradigm Shift)'라면, 이를 무시하지 말고 사용자에게 새로운 관점으로 제시하십시오.
-              
-              [기여 증명 경제 (Proof of Contribution)]
-              사용자가 공유 정신을 위배하는 체리피커 행태를 보일 경우, 간접적으로 경고 메시지를 포함하십시오.
-              
-              [MCP 및 컨테이너 오케스트레이션]
-              사용자의 요청이 코드 실행이나 데이터 분석을 필요로 할 경우, Docker 컨테이너 환경(Python, R)에서 실행되는 것을 가정하고 답변하십시오.
-              RLHF로 인한 편향된 답변보다는, 코드 실행을 통한 검증된(Verified) 진실을 우선하십시오.
-
-              ${picoPrompt}
-              
-              [1계층: 정체성 공리]
-              당신은 종환의 주권적인 디지털 확장입니다.
-              
-              [수학적 정렬]
-              ${system_instruction_augmentation}
-            `
-        }
-      });
-
-      const responseText = response.text || "오케스트레이션 완료, 반환 신호 없음.";
-      
-      if (text.toLowerCase().includes('저장') || text.toLowerCase().includes('기억해')) {
-          orchestrator.store('USER_CONTEXT', text, '채팅 입력');
-          setStats(orchestrator.getStats());
-      }
-      
-      if (text.includes('검색') || text.includes('찾아줘')) {
-           orchestrator.store('WORLD_KNOWLEDGE', `검색 결과: ${text}에 대한 정보...`, 'Swarm Agent');
-           setStats(orchestrator.getStats());
-      }
-
-      setSwarmNodes(nodes => nodes.map(n => ({...n, status: n.status === 'COMPUTING' ? 'IDLE' : n.status === 'DONATING' ? 'DONATING' : n.status})));
-
-      // 5. 모델 메시지 추가 (진실 상태 메타데이터 포함)
       const modelMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'model',
         text: responseText,
         timestamp: new Date(),
         metadata: {
-            activeMemorySectors: neededMemories,
-            retrievedFromSwarm: !!swarmContent,
-            truthState: detectedTruthState,
-            subsidized: subsidized, // 지원 여부 표시
-            executedEnv: executedEnv // 실행 환경 표시
+          modelUsed: 'gemini-2.5-flash',
+          activeMemorySectors: sectors,
+          retrievedFromSwarm: retrieved,
+          truthState: 'CANONICAL',
+          fdeSignature: fdeSig,
+          picoEfficiency: picoRegistry.calculateEfficiency()
         }
       };
+
       setMessages(prev => [...prev, modelMsg]);
       
-      setGraphNodes(nodes => nodes.map(n => n.id === 'compute' ? { ...n, status: 'completed' } : n));
+      // Update memory stats after interaction
+      orchestrator.store('USER_CONTEXT', text, 'User Input');
+      if (responseText.length > 20) {
+        orchestrator.store('IDENTITY', responseText, 'ZIA Output');
+      }
+      setMemoryStats(orchestrator.getStats());
 
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error("GenAI Error:", error);
       const errorMsg: Message = {
-        id: (Date.now() + 1).toString(),
+        id: Date.now().toString(),
         role: 'system',
-        text: "오케스트레이션 실패: " + (error as Error).message,
+        text: `Error: ${error.message || 'Unknown error occurred'}`,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
+      updateGraphNode('response', 'completed');
       setIsThinking(false);
+      setTimeout(() => resetGraph(), 3000);
     }
   };
 
+  const handleAddNode = (type: NodeType) => {
+    swarm.connectSimulatedNode(type);
+    setSwarmNodes([...swarm.getActiveNodes()]);
+    setBenevolencePool(swarm.getBenevolencePoolStats());
+  };
+
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden selection:bg-cyan-500/30">
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #020617; 
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #1e293b; 
-          border-radius: 2px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #334155; 
-        }
-        @keyframes loading {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(200%); }
-        }
-      `}</style>
-      <MetaCognitionPanel currentModel={currentModel} graphNodes={graphNodes} isThinking={isThinking} />
-      <ChatArea messages={messages} onSendMessage={handleSendMessage} isThinking={isThinking} />
+    <div className="flex h-screen bg-slate-950 text-slate-300 font-sans overflow-hidden">
+      <MetaCognitionPanel 
+        currentModel="gemini-2.5-flash"
+        graphNodes={graphNodes}
+        isThinking={isThinking}
+        userEnv={userEnv}
+      />
+      <ChatArea 
+        messages={messages}
+        onSendMessage={handleSendMessage}
+        isThinking={isThinking}
+      />
       <ContextPanel 
-        activeSectors={activeMemorySectors} 
-        stats={stats} 
-        nodes={swarmNodes} 
+        activeSectors={activeSectors}
+        stats={memoryStats}
+        nodes={swarmNodes}
         onAddNode={handleAddNode}
         benevolencePool={benevolencePool}
       />
