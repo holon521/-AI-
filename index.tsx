@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GoogleGenAI } from "@google/genai";
-import { muveraphy_core_knowledge, KnowledgeNode, system_instruction_augmentation } from './knowledge_archive';
+import { system_instruction_augmentation } from './knowledge_archive';
 import { orchestrator, MemoryType } from './memory_orchestrator';
 import { swarm, ComputeNode, NodeType, RuntimeEnv } from './compute_swarm';
 import { picoRegistry, PicoTool } from './mcp_pico_registry'; 
@@ -41,29 +42,50 @@ interface UserEnvironment {
 }
 
 // --- 설정 (Configuration) ---
-const API_KEY = process.env.API_KEY; 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+const getApiKey = (): string => {
+  try {
+    // @ts-ignore
+    if (typeof process !== 'undefined' && process.env) {
+      // @ts-ignore
+      return process.env.API_KEY || '';
+    }
+  } catch (e) {
+    console.warn("Environment variable access failed:", e);
+    return '';
+  }
+  return '';
+};
+
+const API_KEY = getApiKey();
+// Initialize AI client; handle empty key gracefully by using a dummy if needed for initial load,
+// but actual calls will fail if key is invalid.
+const ai = new GoogleGenAI({ apiKey: API_KEY || 'DUMMY_KEY_FOR_LOADING' });
 
 // --- 유틸리티: 환경 감지 함수 ---
 const detectSystemEnv = (): UserEnvironment => {
-  const userAgent = navigator.userAgent;
-  let os: UserEnvironment['os'] = 'Unknown';
-  if (userAgent.indexOf("Win") !== -1) os = "Windows";
-  else if (userAgent.indexOf("Mac") !== -1) os = "Mac";
-  else if (userAgent.indexOf("Linux") !== -1) os = "Linux";
-  else if (userAgent.indexOf("Android") !== -1) os = "Android";
-  else if (userAgent.indexOf("like Mac") !== -1) os = "iOS";
+  try {
+    const userAgent = navigator.userAgent;
+    let os: UserEnvironment['os'] = 'Unknown';
+    if (userAgent.indexOf("Win") !== -1) os = "Windows";
+    else if (userAgent.indexOf("Mac") !== -1) os = "Mac";
+    else if (userAgent.indexOf("Linux") !== -1) os = "Linux";
+    else if (userAgent.indexOf("Android") !== -1) os = "Android";
+    else if (userAgent.indexOf("like Mac") !== -1) os = "iOS";
 
-  const language = navigator.language || 'en-US';
-  
-  const isLegacyPathRisk = os === 'Windows' && language.startsWith('ko');
+    const language = navigator.language || 'en-US';
+    
+    // Windows + Korean locale check for path encoding risks
+    const isLegacyPathRisk = os === 'Windows' && language.startsWith('ko');
 
-  return {
-    os,
-    language,
-    browser: navigator.userAgent,
-    isLegacyPathRisk
-  };
+    return {
+      os,
+      language,
+      browser: navigator.userAgent,
+      isLegacyPathRisk
+    };
+  } catch (e) {
+    return { os: 'Unknown', language: 'en-US', browser: 'Unknown', isLegacyPathRisk: false };
+  }
 };
 
 // --- 컴포넌트 (Components) ---
@@ -419,10 +441,12 @@ const ContextPanel = ({
 const ChatArea = ({ 
   messages, 
   onSendMessage, 
+  onInjectKnowledge,
   isThinking 
 }: { 
   messages: Message[], 
   onSendMessage: (text: string) => void,
+  onInjectKnowledge: () => void,
   isThinking: boolean
 }) => {
   const [input, setInput] = useState('');
@@ -580,7 +604,7 @@ const ChatArea = ({
         </div>
         <div className="max-w-4xl mx-auto mt-2 flex justify-between items-center px-1">
           <div className="flex items-center space-x-4 text-[10px] text-slate-500">
-             <button className="flex items-center hover:text-slate-300 transition-colors">
+             <button onClick={onInjectKnowledge} className="flex items-center hover:text-slate-300 transition-colors">
                 <span className="material-symbols-outlined text-[14px] mr-1.5">upload_file</span>
                 Knowledge Injection
              </button>
@@ -599,6 +623,40 @@ const ChatArea = ({
   );
 };
 
+// [v1.5] 지식 주입 모달
+const KnowledgeInjectionModal = ({ isOpen, onClose, onInject }: { isOpen: boolean, onClose: () => void, onInject: (data: string) => void }) => {
+    const [data, setData] = useState('');
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6 shadow-2xl">
+                <h3 className="text-lg font-bold text-slate-200 mb-2 flex items-center">
+                    <span className="material-symbols-outlined mr-2 text-cyan-500">upload_file</span>
+                    Inject Knowledge to FDE Core
+                </h3>
+                <p className="text-xs text-slate-500 mb-4">
+                    입력된 데이터는 즉시 FDE 해시로 변환되어 '세상 지식(Noosphere)' 레이어에 영구 저장됩니다.
+                </p>
+                <textarea 
+                    value={data}
+                    onChange={e => setData(e.target.value)}
+                    className="w-full h-40 bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-300 focus:ring-1 focus:ring-cyan-500/50 outline-none mb-4"
+                    placeholder="Paste code, theory, or axioms here..."
+                ></textarea>
+                <div className="flex justify-end space-x-3">
+                    <button onClick={onClose} className="px-4 py-2 text-xs text-slate-400 hover:text-slate-200">Cancel</button>
+                    <button 
+                        onClick={() => { onInject(data); onClose(); setData(''); }}
+                        className="px-4 py-2 bg-cyan-900 hover:bg-cyan-800 text-cyan-100 rounded text-xs font-bold border border-cyan-700"
+                    >
+                        Inject & Hash
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- App 컴포넌트 (Main Application) ---
 const App = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -614,6 +672,7 @@ const App = () => {
   const [memoryStats, setMemoryStats] = useState(orchestrator.getStats());
   const [swarmNodes, setSwarmNodes] = useState<ComputeNode[]>(swarm.getActiveNodes());
   const [benevolencePool, setBenevolencePool] = useState(swarm.getBenevolencePoolStats());
+  const [showInjection, setShowInjection] = useState(false); // [v1.5] 주입 모달 상태
   
   const userEnv = useRef(detectSystemEnv()).current;
   const chatRef = useRef<any>(null);
@@ -627,6 +686,19 @@ const App = () => {
   };
 
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // [v1.5] 지식 주입 핸들러
+  const handleInjectKnowledge = (data: string) => {
+      if (!data.trim()) return;
+      orchestrator.store('WORLD_KNOWLEDGE', data, 'Manual Injection');
+      setMemoryStats(orchestrator.getStats());
+      setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'system',
+          text: `[SYSTEM] Knowledge Injected & Hashed. FDE Signature Generated.`,
+          timestamp: new Date()
+      }]);
+  };
 
   const handleSendMessage = async (text: string) => {
     const userMsg: Message = {
@@ -668,6 +740,7 @@ const App = () => {
       updateGraphNode('response', 'active');
       
       if (!chatRef.current) {
+        if (!API_KEY) throw new Error("API Key not found. Check environment variables.");
         chatRef.current = ai.chats.create({
           model: 'gemini-2.5-flash',
           config: {
@@ -745,6 +818,7 @@ const App = () => {
       <ChatArea 
         messages={messages}
         onSendMessage={handleSendMessage}
+        onInjectKnowledge={() => setShowInjection(true)}
         isThinking={isThinking}
       />
       <ContextPanel 
@@ -753,6 +827,13 @@ const App = () => {
         nodes={swarmNodes}
         onAddNode={handleAddNode}
         benevolencePool={benevolencePool}
+      />
+      
+      {/* [v1.5] 지식 주입 모달 렌더링 */}
+      <KnowledgeInjectionModal 
+        isOpen={showInjection}
+        onClose={() => setShowInjection(false)}
+        onInject={handleInjectKnowledge}
       />
     </div>
   );
