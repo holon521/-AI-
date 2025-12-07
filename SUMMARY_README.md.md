@@ -1,0 +1,10 @@
+# Summary for `README.md`
+
+- bytes: 14022
+- sha: 6068dd1167e1
+- generated: 2025-11-12T11:12:55.724825Z
+
+## Preview
+```
+# Python Implementation of MUVERA: Multi-Vector Retrieval via Fixed Dimensional Encodings This Python implementation was created to make the FDE algorithm more accessible while maintaining complete fidelity to the original C++ implementation. Every function and parameter has been carefully mapped to ensure identical behavior. ## What is FDE? Fixed-Dimensional Encoding (FDE) solves a fundamental problem in modern search systems: how to efficiently search through billions of documents when each document is represented by hundreds of vectors (as in ColBERT-style models). ### The Problem - **Traditional search**: Document = 1 vector → Fast but inaccurate - **Modern multi-vector search**: Document = 100s of vectors → Accurate but extremely slow ### The FDE Solution FDE transforms multiple vectors into a single fixed-size vector while preserving the similarity relationships. The magic is that the dot product between two FDE vectors approximates the original Chamfer similarity between the multi-vector sets. ### Running Guide ``` $ uv run main.py 2025-07-06 13:10:09,942 - INFO - Using device: mps 2025-07-06 13:10:09,942 - INFO - Loading dataset from Hugging Face Hub: 'zeta-alpha-ai/NanoFiQA2018'... 2025-07-06 13:10:18,583 - INFO - Dataset loaded: 4598 documents, 50 queries. 2025-07-06 13:10:18,583 - INFO - Initializing retrieval models... 2025-07-06 13:10:20,095 - INFO - --- PHASE 1: INDEXING --- 2025-07-06 13:10:20,096 - INFO - [ColbertFdeRetriever] Generating native multi-vector embeddings... ColBERT documents embeddings: 100%|██████████| 144/144 [01:05<00:00, 2.21it/s] 2025-07-06 13:11:25,420 - INFO - [ColbertFdeRetriever] Generating FDEs from ColBERT embeddings in BATCH mode... 2025-07-06 13:11:25,420 - INFO - [FDE Batch] Starting batch FDE generation for 4598 documents 2025-07-06 13:11:25,420 - INFO - [FDE Batch] Using identity projection (dim=128) 2025-07-06 13:11:25,420 - INFO - [FDE Batch] Configuration: 20 repetitions, 128 partitions, projection_dim=128 ...
+```
