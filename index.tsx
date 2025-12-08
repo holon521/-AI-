@@ -8,6 +8,7 @@ import { swarm, ComputeNode } from './compute_swarm';
 import { GENESIS_CONSTITUTION, SkepticismProtocol } from './GENESIS_AXIOM'; 
 import { computeSimHashSignature, calculateLogicDensity, computeHammingDistance } from './fde_logic';
 import { SPECS, SpecKey } from './spec_loader';
+import { driveBridge } from './services/drive_bridge'; // [Phase 2] Import Bridge
 
 // --- 타입 정의 ---
 interface Message {
@@ -80,6 +81,8 @@ const detectSystemEnv = (): UserEnvironment => {
   } catch (e) { return { os: 'Unknown', language: 'en-US', isLegacyPathRisk: false }; }
 };
 
+// --- COMPONENTS ---
+
 const BlueprintViewer = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
     const [activeTab, setActiveTab] = useState<SpecKey>('01_VISION.md');
     if (!isOpen) return null;
@@ -103,6 +106,64 @@ const BlueprintViewer = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 font-mono text-xs text-slate-300 leading-relaxed custom-scrollbar bg-[#0d1117]">
                     <pre className="whitespace-pre-wrap font-sans">{SPECS[activeTab]}</pre>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const SettingsModal = ({ isOpen, onClose, clientId, setClientId, isDriveConnected, onSimulateConnection }: any) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+            <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+                <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
+                    <h2 className="text-sm font-bold text-slate-200 flex items-center"><span className="material-symbols-outlined mr-2">settings</span>SYSTEM CONFIG</h2>
+                    <button onClick={onClose}><span className="material-symbols-outlined text-slate-500 hover:text-white">close</span></button>
+                </div>
+                <div className="p-6 space-y-6">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 mb-2 uppercase">Google Cloud Client ID</label>
+                        <input 
+                            type="text" 
+                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200 focus:border-cyan-500 outline-none font-mono"
+                            placeholder="7483...apps.googleusercontent.com"
+                            value={clientId}
+                            onChange={(e) => setClientId(e.target.value)}
+                        />
+                        <p className="text-[10px] text-slate-500 mt-2">Required for Real Drive & Colab Bridge. (OAuth 2.0)</p>
+                    </div>
+                    <div className="border-t border-slate-800 pt-4">
+                        <div className="flex justify-between items-center mb-4">
+                            <span className="text-xs text-slate-300">Drive Bridge Status</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isDriveConnected ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
+                                {isDriveConnected ? 'CONNECTED' : 'OFFLINE'}
+                            </span>
+                        </div>
+                        {!isDriveConnected ? (
+                            <div className="space-y-2">
+                                <button 
+                                    onClick={() => driveBridge.login()}
+                                    className="w-full bg-cyan-900/30 border border-cyan-800 text-cyan-400 hover:bg-cyan-900/50 py-2 rounded text-xs font-bold flex items-center justify-center transition-all"
+                                >
+                                    <span className="material-symbols-outlined text-sm mr-2">login</span>CONNECT REAL GOOGLE DRIVE
+                                </button>
+                                <div className="text-center text-[9px] text-slate-600 font-mono">- OR -</div>
+                                <button 
+                                    onClick={onSimulateConnection}
+                                    className="w-full bg-purple-900/20 border border-purple-800 text-purple-400 hover:bg-purple-900/40 py-2 rounded text-xs font-bold flex items-center justify-center transition-all"
+                                >
+                                    <span className="material-symbols-outlined text-sm mr-2">science</span>TEST MODE (SIMULATE CONNECTION)
+                                </button>
+                                <p className="text-[9px] text-slate-500 text-center mt-1">Use Test Mode to preview UI features without API Key.</p>
+                            </div>
+                        ) : (
+                            <div className="p-3 bg-green-900/10 border border-green-800/30 rounded text-center">
+                                <div className="text-green-500 text-xs font-bold mb-1">BRIDGE ACTIVE</div>
+                                <div className="text-[10px] text-green-400/70">ZIA is now synced with Cloud Storage.</div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -134,7 +195,7 @@ const ArtifactsCanvas = ({ content, isOpen, onClose, dna, isExpanded, toggleExpa
 const MetaCognitionPanel = ({ graphNodes, isThinking, userEnv, onOpenSpec, dna, isOpen, toggle }: any) => {
   if (!isOpen) return null;
   return (
-    <div className="w-64 bg-slate-950 border-r border-slate-900 flex flex-col h-full flex-shrink-0 z-20 shadow-xl font-mono hidden md:flex">
+    <div className="w-64 bg-slate-950 border-r border-slate-900 flex flex-col h-full flex-shrink-0 z-20 shadow-xl font-mono">
       <div className="p-4 border-b border-slate-900 bg-slate-950/50 flex justify-between items-start">
         <div>
             <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Mathematical Core</h2>
@@ -175,7 +236,7 @@ const MetaCognitionPanel = ({ graphNodes, isThinking, userEnv, onOpenSpec, dna, 
   );
 };
 
-const ContextPanel = ({ activeSectors, stats, nodes, benevolencePool, isOpen, toggle }: any) => {
+const ContextPanel = ({ activeSectors, stats, nodes, benevolencePool, isOpen, toggle, isDriveConnected }: any) => {
   if (!isOpen) return null;
   return (
     <div className="w-72 bg-slate-950 border-l border-slate-900 flex flex-col h-full flex-shrink-0 z-20 shadow-xl font-mono">
@@ -187,6 +248,13 @@ const ContextPanel = ({ activeSectors, stats, nodes, benevolencePool, isOpen, to
         <div className="flex items-center space-x-2 bg-amber-900/10 p-2 rounded border border-amber-800/30">
             <span className="material-symbols-outlined text-amber-500 text-sm">volunteer_activism</span>
             <div className="flex flex-col w-full"><span className="text-[9px] text-amber-500 font-bold uppercase">Benevolence Pool</span><span className="text-[10px] text-slate-300">{benevolencePool.toFixed(1)} TF (Available)</span></div>
+        </div>
+        <div className={`mt-2 flex items-center space-x-2 p-2 rounded border transition-colors duration-500 ${isDriveConnected ? 'bg-green-900/10 border-green-800/30' : 'bg-slate-900/30 border-slate-800'}`}>
+            <span className={`material-symbols-outlined text-sm ${isDriveConnected ? 'text-green-500' : 'text-slate-500'}`}>cloud_sync</span>
+            <div className="flex flex-col w-full">
+                <span className={`text-[9px] font-bold uppercase ${isDriveConnected ? 'text-green-500' : 'text-slate-500'}`}>{isDriveConnected ? 'Drive Connected' : 'Local Storage'}</span>
+                <span className="text-[9px] text-slate-400">{isDriveConnected ? 'Bridge Active (Ready)' : 'Offline Mode'}</span>
+            </div>
         </div>
       </div>
       <div className="flex-1 p-4 space-y-3 overflow-y-auto custom-scrollbar">
@@ -214,6 +282,7 @@ const App = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [showSpec, setShowSpec] = useState(false);
+  const [showSettings, setShowSettings] = useState(false); // [v2.0] Settings Modal State
   
   // Layout States
   const [showCanvas, setShowCanvas] = useState(false);
@@ -225,6 +294,10 @@ const App = () => {
 
   // Stats State
   const [memoryStats, setMemoryStats] = useState(orchestrator.getStats());
+
+  // Auth States
+  const [googleClientId, setGoogleClientId] = useState('');
+  const [isDriveConnected, setIsDriveConnected] = useState(false);
 
   // [v2.0] System DNA for Evolution
   const [systemDNA, setSystemDNA] = useState<SystemDNA>({
@@ -254,6 +327,13 @@ const App = () => {
         
         const savedDNA = localStorage.getItem('ZIA_SYSTEM_DNA');
         if (savedDNA) setSystemDNA(JSON.parse(savedDNA));
+
+        const savedClientId = localStorage.getItem('ZIA_GOOGLE_CLIENT_ID');
+        if (savedClientId) {
+            setGoogleClientId(savedClientId);
+            // Auto connect if ID exists? Maybe wait for user action in real app
+            // driveBridge.init(savedClientId, ...);
+        }
         
         // Initial Stats Load
         setMemoryStats(orchestrator.getStats());
@@ -263,7 +343,15 @@ const App = () => {
   useEffect(() => {
     if (messages.length > 0) localStorage.setItem('ZIA_CHAT_LOG', JSON.stringify(messages));
     localStorage.setItem('ZIA_SYSTEM_DNA', JSON.stringify(systemDNA));
-  }, [messages, systemDNA]);
+    if (googleClientId) localStorage.setItem('ZIA_GOOGLE_CLIENT_ID', googleClientId);
+  }, [messages, systemDNA, googleClientId]);
+
+  // Handle Client ID Change
+  useEffect(() => {
+    if (googleClientId) {
+        driveBridge.init(googleClientId, (token) => setIsDriveConnected(true));
+    }
+  }, [googleClientId]);
 
   const updateGraphNode = (id: string, status: GraphNode['status']) => {
     setGraphNodes(prev => prev.map(n => n.id === id ? { ...n, status } : n));
@@ -348,7 +436,10 @@ const App = () => {
     updateGraphNode('orchestrator', 'active');
     const sectors = await orchestrator.routeQuery(text);
     setActiveSectors(sectors);
-    const recalledMemories = orchestrator.retrieveRelatedMemories(effectivePrompt);
+    
+    // [v1.7] Retrieve User Context & World Knowledge via FDE Similarity
+    const relatedMemories = orchestrator.retrieveRelatedMemories(effectivePrompt);
+    const userContext = orchestrator.retrieveUserContext();
     updateGraphNode('orchestrator', 'completed');
 
     updateGraphNode('memory', 'active');
@@ -359,9 +450,12 @@ const App = () => {
         }
         
         let finalMessage = effectivePrompt;
-        if (recalledMemories) {
-            finalMessage = `[SYSTEM: The following are related memories retrieved via FDE (Fixed Dimensional Encoding). Use them to answer.]\n${recalledMemories}\n\n[USER REQUEST]: ${effectivePrompt}`;
-        }
+        let systemNote = "";
+        
+        if (userContext) systemNote += `[RECENT USER CONTEXT]:\n${userContext}\n\n`;
+        if (relatedMemories) systemNote += `[RECALLED MEMORIES (FDE Similarity)]: \n${relatedMemories}\n\n`;
+        
+        if (systemNote) finalMessage = `${systemNote}[USER REQUEST]: ${effectivePrompt}`;
 
         updateGraphNode('memory', 'completed');
         updateGraphNode('response', 'active');
@@ -374,10 +468,6 @@ const App = () => {
         const logicScore = calculateLogicDensity(responseText);
         
         // [Knowledge Harvest Check]
-        // Store if: 
-        // 1. Has grounding metadata (Web Search) OR
-        // 2. High Logic Score (>0.6) and length > 50 (Reasoning)
-        // 3. User explicitly asked for definition/fact (QUERY intent)
         if ((groundingMetadata || (logicScore > 0.6 && responseText.length > 50) || refinement.type === 'QUERY')) {
             const harvestSource = groundingMetadata ? 'Web Search' : 'Internal Reasoning';
             orchestrator.store('WORLD_KNOWLEDGE', responseText, harvestSource);
@@ -400,7 +490,7 @@ const App = () => {
             }
         }]);
         orchestrator.store('USER_CONTEXT', text, 'User Input');
-        setMemoryStats(orchestrator.getStats()); // Update after user input too
+        setMemoryStats(orchestrator.getStats()); 
 
         if (responseText.includes('```') || responseText.length > 300) {
             setCanvasContent(responseText);
@@ -460,6 +550,7 @@ const App = () => {
                  <div className="flex items-center space-x-2"><span className="text-sm font-bold tracking-widest text-slate-200">ZIA: HOLON WORLD</span><span className="text-[9px] bg-cyan-900/30 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-800">ALPHA</span></div>
              </div>
              <div className="flex items-center space-x-4">
+                 <button onClick={() => setShowSettings(true)} className="text-slate-500 hover:text-slate-300" title="Settings"><span className="material-symbols-outlined text-sm">settings</span></button>
                  <button onClick={() => setShowSpec(true)} className="flex items-center space-x-1 text-slate-400 hover:text-purple-400 transition-colors"><span className="material-symbols-outlined text-sm">article</span><span className="text-xs font-bold hidden md:inline">BLUEPRINT</span></button>
                  <div className="h-4 w-px bg-slate-800"></div>
                  <button onClick={() => setShowCanvas(!showCanvas)} className={`text-slate-500 hover:text-cyan-400 ${showCanvas ? 'text-cyan-400' : ''}`} title="Toggle Canvas"><span className="material-symbols-outlined">space_dashboard</span></button>
@@ -520,10 +611,26 @@ const App = () => {
 
       {/* Right Panel: Context & Memory */}
       <div className={`transition-all duration-300 ease-in-out border-l border-slate-900 ${isRightPanelOpen ? 'w-72' : 'w-0 overflow-hidden'}`}>
-          <ContextPanel activeSectors={activeSectors} stats={memoryStats} nodes={swarm.getActiveNodes()} benevolencePool={swarm.getBenevolencePoolStats()} isOpen={true} toggle={() => setIsRightPanelOpen(false)} />
+          <ContextPanel 
+            activeSectors={activeSectors} 
+            stats={memoryStats} 
+            nodes={swarm.getActiveNodes()} 
+            benevolencePool={swarm.getBenevolencePoolStats()} 
+            isOpen={true} 
+            toggle={() => setIsRightPanelOpen(false)} 
+            isDriveConnected={isDriveConnected} 
+          />
       </div>
 
       <BlueprintViewer isOpen={showSpec} onClose={() => setShowSpec(false)} />
+      <SettingsModal 
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)} 
+        clientId={googleClientId} 
+        setClientId={setGoogleClientId} 
+        isDriveConnected={isDriveConnected} 
+        onSimulateConnection={() => setIsDriveConnected(true)}
+      />
     </div>
   );
 };

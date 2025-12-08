@@ -24,13 +24,15 @@ graph TD
     end
     
     subgraph "Cloud Resources"
-        Drive[Google Drive (Long-term Memory)]
+        Drive[Google Drive (Long-term Memory & Bridge)]
         Colab[Google Colab (Compute Engine)]
+        Kaggle[Kaggle Kernels (Data Source)]
     end
     
     Core <-->|Bridge App| LocalGPU
-    Core <-->|OAuth| Drive
-    Core <-->|WebSocket| Colab
+    Core <-->|OAuth 2.0 (GIS)| Drive
+    Drive <-->|Mailbox Pattern (JSON I/O)| Colab
+    Colab -.->|Kaggle API| Kaggle
 ```
 
 ## 2. 핵심 모듈 (Core Modules)
@@ -47,7 +49,8 @@ graph TD
 - FDE(Fixed Dimensional Encoding)를 통해 기억을 압축 저장합니다.
 
 ### 2.3. Compute Swarm (연산 스웜)
-- Docker 컨테이너를 관리하고, Python/R 코드를 실행할 최적의 노드(Local vs Colab)를 선택합니다.
+- **Drive Bridge Pattern:** Colab과의 직접 통신 대신 구글 드라이브를 메시지 큐(Message Queue)로 활용하여 보안 제약을 우회하고 안정적인 연산을 수행합니다.
+- **Kaggle Integration:** Colab을 프록시로 사용하여 Kaggle 데이터셋에 접근합니다.
 
 ## 3. 데이터 흐름 (Data Flow)
 1.  **Refinement:** 사용자 입력 -> Receptionist 분석 -> (역질문) -> 최적화된 프롬프트 생성.
