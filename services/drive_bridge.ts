@@ -45,6 +45,14 @@ export class DriveBridge {
         }
     }
 
+    // Developer Bypass: Manually set token
+    public setManualToken(token: string, callback: () => void) {
+        this.accessToken = token;
+        console.log("[DriveBridge] Manual Token Set. Bypassing OAuth flow.");
+        this.ensureSystemFolder();
+        callback();
+    }
+
     public getStatus(): DriveAuthStatus {
         return {
             isAuthenticated: !!this.accessToken,
@@ -59,22 +67,27 @@ export class DriveBridge {
     private async ensureSystemFolder() {
         if (!this.accessToken) return;
         
-        // Check if exists
-        const q = "mimeType='application/vnd.google-apps.folder' and name='_ZIA_HOLON_WORLD' and trashed=false";
-        const res = await this.fetchDriveAPI(`files?q=${encodeURIComponent(q)}`);
-        
-        if (res.files && res.files.length > 0) {
-            this.folderId = res.files[0].id;
-            console.log("[Drive] Found System Folder:", this.folderId);
-        } else {
-            // Create
-            const meta = {
-                name: '_ZIA_HOLON_WORLD',
-                mimeType: 'application/vnd.google-apps.folder'
-            };
-            const createRes = await this.postDriveAPI('files', meta);
-            this.folderId = createRes.id;
-            console.log("[Drive] Created System Folder:", this.folderId);
+        try {
+            // Check if exists
+            const q = "mimeType='application/vnd.google-apps.folder' and name='_ZIA_HOLON_WORLD' and trashed=false";
+            const res = await this.fetchDriveAPI(`files?q=${encodeURIComponent(q)}`);
+            
+            if (res.files && res.files.length > 0) {
+                this.folderId = res.files[0].id;
+                console.log("[Drive] Found System Folder:", this.folderId);
+            } else {
+                // Create
+                const meta = {
+                    name: '_ZIA_HOLON_WORLD',
+                    mimeType: 'application/vnd.google-apps.folder'
+                };
+                const createRes = await this.postDriveAPI('files', meta);
+                this.folderId = createRes.id;
+                console.log("[Drive] Created System Folder:", this.folderId);
+            }
+        } catch (e) {
+            console.error("[Drive] Failed to ensure system folder. Token might be invalid.", e);
+            alert("Failed to connect to Drive. Check if your Access Token is valid and has 'drive.file' scope.");
         }
     }
 
@@ -101,11 +114,45 @@ export class DriveBridge {
         return await res.json();
     }
 
+    // New: Search files in the system folder
+    public async searchFiles(queryFragment: string) {
+        if (!this.accessToken) return [];
+
+        let q = queryFragment;
+        if (this.folderId) {
+            q = `(${q}) and '${this.folderId}' in parents`;
+        }
+
+        const res = await this.fetchDriveAPI(`files?q=${encodeURIComponent(q)}`);
+        return res.files || [];
+    }
+
+    // New: Get file content (download and parse JSON)
+    public async getFileContent(fileId: string) {
+        if (!this.accessToken) return null;
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: { 'Authorization': `Bearer ${this.accessToken}` }
+        });
+        if (!res.ok) throw new Error(res.statusText);
+        return await res.json();
+    }
+
+    // New: Delete a file
+    public async deleteFile(fileId: string) {
+        if (!this.accessToken) return;
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${this.accessToken}` }
+        });
+        if (!res.ok) throw new Error(res.statusText);
+    }
+
     // Helper: GET
     private async fetchDriveAPI(endpoint: string) {
         const res = await fetch(`https://www.googleapis.com/drive/v3/${endpoint}`, {
             headers: { 'Authorization': `Bearer ${this.accessToken}` }
         });
+        if (!res.ok) throw new Error(res.statusText);
         return await res.json();
     }
 
@@ -119,6 +166,7 @@ export class DriveBridge {
             },
             body: JSON.stringify(body)
         });
+        if (!res.ok) throw new Error(res.statusText);
         return await res.json();
     }
 }
