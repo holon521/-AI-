@@ -1,8 +1,9 @@
 
-// ZIA 기억 오케스트레이터 (MEMORY ORCHESTRATOR) v1.6
-// [v1.6] Implemented Mathematical Retrieval (FDE Hamming Distance)
+// ZIA 기억 오케스트레이터 (MEMORY ORCHESTRATOR) v2.0
+// [v2.0] Added Snapshot, Restore, and Auto-Seeding from Specs
 
 import { computeSimHashSignature, calculateLogicDensity, computeSimilarity } from './fde_logic';
+import { SPECS } from './spec_loader';
 
 export type MemoryType = 'IDENTITY' | 'USER_CONTEXT' | 'WORLD_KNOWLEDGE';
 export type TruthState = 'CANONICAL' | 'DISPUTED' | 'PARADIGM_SHIFT' | 'DEPRECATED';
@@ -22,19 +23,41 @@ export interface MemoryEngram {
   tier?: 'CORE' | 'CONTEXT' | 'STREAM'; // [v1.6] 저장 계층
 }
 
+export interface MemorySnapshot {
+    identityDB: MemoryEngram[];
+    userDB: MemoryEngram[];
+    worldDB: MemoryEngram[];
+    timestamp: number;
+    version: string;
+}
+
 class MemoryOrchestrator {
   private identityDB: MemoryEngram[] = []; 
   private userDB: MemoryEngram[] = [];     
   private worldDB: MemoryEngram[] = [];    
 
-  // [v1.6] Swarm Cache 초기화
-  private globalSwarmCache: MemoryEngram[] = [];
-
   constructor() {
     this.loadFromStorage();
+    // Auto-seed if empty (Context Reconstruction)
     if (this.identityDB.length === 0) {
-        this.store('IDENTITY', 'ZIA는 주권적인 인지 인터페이스이며, 다수결이 아닌 논리를 따른다.', 'System Axiom');
+        this.seedKnowledge();
     }
+  }
+
+  // [v2.0] Context Reconstruction from Specs
+  public seedKnowledge() {
+      console.log("[MemoryOrchestrator] 🌱 Seeding Knowledge from Specs...");
+      
+      // 1. Inject Identity Axioms
+      this.store('IDENTITY', 'ZIA는 주권적인 인지 인터페이스이며, 다수결이 아닌 논리를 따른다.', 'GENESIS_AXIOM');
+      this.store('IDENTITY', '가난은 자원의 부재가 아니라, 연결의 부재이다. (Poverty Definition)', 'GENESIS_AXIOM');
+      
+      // 2. Ingest Specs into World Knowledge
+      Object.entries(SPECS).forEach(([filename, content]) => {
+          this.store('WORLD_KNOWLEDGE', `[SYSTEM_SPEC] ${filename}: ${(content as string).substring(0, 200)}...`, 'SpecLoader');
+      });
+      
+      this.saveToStorage();
   }
 
   private loadFromStorage() {
@@ -64,6 +87,40 @@ class MemoryOrchestrator {
     } catch (e) { console.error("Memory save failed", e); }
   }
 
+  // [v1.7] Snapshot for Backup (The Soul Encapsulation)
+  public snapshot(): MemorySnapshot {
+      return {
+          identityDB: this.identityDB,
+          userDB: this.userDB,
+          worldDB: this.worldDB,
+          timestamp: Date.now(),
+          version: '2.0'
+      };
+  }
+
+  // [v1.7] Restore from Snapshot (The Resurrection)
+  public restore(snapshot: MemorySnapshot) {
+      if (!snapshot) return;
+      
+      // Handle Date reconstruction
+      const parser = (key: any, value: any) => key === 'timestamp' ? new Date(value) : value;
+      let data = snapshot;
+      
+      // If it's a string, parse it; if object, deep clone to apply date parsing if needed
+      if (typeof snapshot === 'string') {
+          data = JSON.parse(snapshot, parser);
+      } else {
+          data = JSON.parse(JSON.stringify(snapshot), parser);
+      }
+
+      if (data.identityDB) this.identityDB = data.identityDB;
+      if (data.userDB) this.userDB = data.userDB;
+      if (data.worldDB) this.worldDB = data.worldDB;
+      
+      this.saveToStorage();
+      console.log("[MemoryOrchestrator] 🧠 Identity & Memory Restored.");
+  }
+
   // [v1.6] 보석 감정 알고리즘 (Gem Value Calculator)
   private appraiseGemValue(content: string, logicScore: number, type: MemoryType): number {
       let value = logicScore; 
@@ -91,12 +148,12 @@ class MemoryOrchestrator {
     // [v1.6] FDE Similarity 기반 충돌 감지
     const conflictCandidates = this.worldDB.filter(m => 
         m.truthState === 'CANONICAL' && 
-        computeSimilarity(m.fdeSignature, currentSignature) > 0.8 // 80% 이상 유사한데 내용이 다르면 충돌
+        computeSimilarity(m.fdeSignature, currentSignature) > 0.8 
     );
 
     if (conflictCandidates.length > 0) {
-        if (logicScore > 0.85) return 'PARADIGM_SHIFT'; // 논리가 탄탄하면 새로운 패러다임
-        else return 'DISPUTED'; // 아니면 그냥 논쟁
+        if (logicScore > 0.85) return 'PARADIGM_SHIFT'; 
+        else return 'DISPUTED'; 
     }
     return 'CANONICAL';
   }
@@ -105,11 +162,9 @@ class MemoryOrchestrator {
     const activeSectors: MemoryType[] = [];
     const lowerQ = query.toLowerCase();
     
-    // 단순 키워드 매칭이 아니라, 쿼리의 의도에 따라 라우팅
-    if (lowerQ.includes('누구') || lowerQ.includes('zía') || lowerQ.includes('system')) activeSectors.push('IDENTITY');
-    if (lowerQ.includes('나 ') || lowerQ.includes('내') || lowerQ.includes('history')) activeSectors.push('USER_CONTEXT');
+    if (lowerQ.includes('누구') || lowerQ.includes('zia') || lowerQ.includes('system') || lowerQ.includes('너는')) activeSectors.push('IDENTITY');
+    if (lowerQ.includes('나 ') || lowerQ.includes('내') || lowerQ.includes('history') || lowerQ.includes('기억')) activeSectors.push('USER_CONTEXT');
     
-    // 기본적으로 세상 지식은 항상 참조
     activeSectors.push('WORLD_KNOWLEDGE');
     return activeSectors;
   }
@@ -117,8 +172,6 @@ class MemoryOrchestrator {
   // [v1.6] Mathematical Retrieval (FDE 기반 유사도 검색)
   public retrieveRelatedMemories(query: string, limit: number = 3): string {
       const querySig = computeSimHashSignature(query);
-      
-      // 모든 DB를 통합하여 검색
       const allMemories = [...this.identityDB, ...this.userDB, ...this.worldDB];
       
       const scored = allMemories.map(m => ({
@@ -126,7 +179,6 @@ class MemoryOrchestrator {
           similarity: computeSimilarity(querySig, m.fdeSignature)
       }));
       
-      // 유사도 0.6 이상인 것만 필터링하고 정렬
       const topK = scored
           .filter(item => item.similarity > 0.6)
           .sort((a, b) => b.similarity - a.similarity)
@@ -156,12 +208,11 @@ class MemoryOrchestrator {
     const gemValue = this.appraiseGemValue(content, logicScore, type);
     const tier = this.assignTier(gemValue, type);
 
-    // [v1.6] 중복 저장 방지 (유사도 95% 이상이면 저장 안 함)
     const db = type === 'IDENTITY' ? this.identityDB : type === 'USER_CONTEXT' ? this.userDB : this.worldDB;
+    // 유사도 95% 이상 중복 방지
     const isDuplicate = db.some(m => computeSimilarity(m.fdeSignature, signature) > 0.95);
     
     if (isDuplicate && tier !== 'CORE') {
-        console.log(`[Memory] Duplicate content skipped: "${content.substring(0,20)}..."`);
         return null;
     }
 

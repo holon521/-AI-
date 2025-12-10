@@ -60,6 +60,25 @@ class SwarmController {
   public getActiveNodes(): ComputeNode[] {
     return this.nodes.filter(n => n.status !== 'DISCONNECTED');
   }
+
+  public updateNodeMetrics(nodeId: string, contributed: number, consumed: number) {
+      const node = this.nodes.find(n => n.id === nodeId);
+      if (node) {
+          node.metrics.contributedOps += contributed;
+          node.metrics.consumedOps += consumed;
+          // Avoid division by zero
+          const denominator = node.metrics.consumedOps === 0 ? 1 : node.metrics.consumedOps;
+          node.metrics.ratio = node.metrics.contributedOps / denominator;
+          
+          // Simple social score logic: higher ratio -> higher score
+          node.metrics.socialScore = Math.min(100, node.metrics.ratio * 10);
+
+          // Update global benevolence pool based on net positive contribution
+          if (contributed > consumed) {
+              this.benevolencePool += (contributed - consumed) * 0.1; // 10% tax/contribution to pool
+          }
+      }
+  }
 }
 
 export const swarm = new SwarmController();
