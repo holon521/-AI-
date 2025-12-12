@@ -1,4 +1,3 @@
-
 // ZIA SYSTEM TYPES
 import { MemoryType } from './02_CORTEX/memory_orchestrator';
 
@@ -34,6 +33,7 @@ export interface Message {
     groundingMetadata?: any;
     harvested?: boolean;
     swarmProcessed?: boolean;
+    swarmResult?: boolean;
     appliedStrategy?: ReasoningMode; // [New] To track which strategy AUTO picked
   };
 }

@@ -27,7 +27,6 @@ interface SettingsModalProps {
     setBaseUrl?: (url: string) => void;
     reasoningMode?: ReasoningMode;
     setReasoningMode?: (mode: ReasoningMode) => void;
-    // New Prop for Demo
     onEnableDemoMode?: () => void;
 }
 
@@ -46,7 +45,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [brainStatus, setBrainStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
     const [brainMsg, setBrainMsg] = useState('');
     
+    // Swarm State
     const [deployState, setDeployState] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+    const [existingSwarmStatus, setExistingSwarmStatus] = useState<{alive: boolean, lastBeat?: number, version?: string} | null>(null);
     const [colabLink, setColabLink] = useState<string>('');
     const [ngrokToken, setNgrokToken] = useState('');
     const [appLaunchStatus, setAppLaunchStatus] = useState<string>('');
@@ -61,9 +62,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const savedNgrok = localStorage.getItem('ZIA_NGROK_TOKEN');
         if (savedNgrok) setNgrokToken(savedNgrok);
         
-        // Load initial memory stats
-        if (isOpen) refreshMemoryStats();
-    }, [isOpen]);
+        if (isOpen) {
+            refreshMemoryStats();
+            // If Drive is already connected, check Swarm health immediately
+            if (isDriveConnected) checkSwarmHealth();
+        }
+    }, [isOpen, isDriveConnected]);
+
+    // [SMART RECONNECT LOGIC]
+    const checkSwarmHealth = async () => {
+        try {
+            const files = await driveBridge.searchFiles("name = 'swarm_status.json' and trashed=false");
+            if (files.length > 0) {
+                const status = await driveBridge.getFileContent(files[0].id);
+                // Check modified time or internal heartbeat if available. 
+                // Currently trusting the file existence + 'ONLINE' status.
+                // In a real scenario, we compare file modifiedTime with Date.now().
+                const lastMod = new Date(files[0].modifiedTime).getTime();
+                const now = Date.now();
+                const diff = (now - lastMod) / 1000; // seconds
+
+                if (diff < 120) { // If heartbeat within last 2 mins
+                    setExistingSwarmStatus({ alive: true, lastBeat: diff, version: status.version });
+                    // If file exists, we can also construct the Colab link if we find the notebook
+                    findExistingNotebook();
+                } else {
+                    setExistingSwarmStatus({ alive: false, lastBeat: diff });
+                }
+            } else {
+                setExistingSwarmStatus({ alive: false });
+            }
+        } catch (e) {
+            console.warn("Swarm health check failed", e);
+            setExistingSwarmStatus(null);
+        }
+    };
+
+    const findExistingNotebook = async () => {
+         const fileName = `ZIA_COMPUTE_NODE.ipynb`;
+         const files = await driveBridge.searchFiles(`name = '${fileName}' and trashed = false`);
+         if (files.length > 0) {
+             setColabLink(`https://colab.research.google.com/drive/${files[0].id}`);
+             setDeployState('success');
+         }
+    };
 
     const refreshMemoryStats = () => {
         setMemDebugData(orchestrator.getRawDebugData());
@@ -80,7 +122,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (!manualToken.trim()) return;
         setIsConnecting(true);
         try {
-            await driveBridge.setManualToken(manualToken, onSimulateConnection);
+            await driveBridge.setManualToken(manualToken, () => {
+                onSimulateConnection();
+                // Check Swarm immediately after connection
+                setTimeout(checkSwarmHealth, 1000);
+            });
         } catch (e: any) {
             alert(`Connection Failed: ${e.message}`);
         } finally {
@@ -123,6 +169,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             const notebook = getNotebookJSON();
             const fileName = `ZIA_COMPUTE_NODE.ipynb`;
             const existingFiles = await driveBridge.searchFiles(`name = '${fileName}' and trashed = false`);
+            // Delete old notebook to avoid clutter
             if (existingFiles.length > 0) {
                 for (const file of existingFiles) await driveBridge.deleteFile(file.id);
             }
@@ -130,6 +177,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             if (res && res.id) {
                 setColabLink(`https://colab.research.google.com/drive/${res.id}`);
                 setDeployState('success');
+                // Force status update
+                setExistingSwarmStatus(null); 
             } else {
                 throw new Error("No file ID returned");
             }
@@ -297,7 +346,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </div>
                                 <input type="password" className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200 font-mono" placeholder="ya29..." value={manualToken} onChange={(e) => setManualToken(e.target.value)} />
                                 <button onClick={handleConnect} disabled={isConnecting} className="w-full border px-3 py-2 rounded text-xs font-bold bg-amber-900/20 border-amber-800 text-amber-400 hover:bg-amber-900/40">
-                                    {isConnecting ? "CONNECTING..." : "CONNECT"}
+                                    {isConnecting ? "CONNECTING..." : "CONNECT & SYNC"}
                                 </button>
                         </div>
                     ) : (
@@ -308,9 +357,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
                             
                             <div className="p-3 bg-slate-950 rounded border border-slate-800">
-                                <h4 className="text-xs font-bold text-purple-400 mb-2">COMPUTE SWARM (Colab)</h4>
-                                {deployState === 'idle' && <button onClick={handleDeploy} className="w-full bg-purple-900/20 border border-purple-800 text-purple-400 py-2 rounded text-xs font-bold flex items-center justify-center hover:bg-purple-900/40">DEPLOY KERNEL</button>}
-                                {deployState === 'success' && <a href={colabLink} target="_blank" rel="noopener noreferrer" className="w-full bg-green-900/20 border border-green-800 text-green-400 py-2 rounded text-xs font-bold flex items-center justify-center hover:bg-green-900/40">OPEN IN COLAB</a>}
+                                <div className="flex justify-between items-center mb-2">
+                                    <h4 className="text-xs font-bold text-purple-400">COMPUTE SWARM (Colab)</h4>
+                                    {existingSwarmStatus?.alive && (
+                                        <span className="text-[9px] text-green-400 font-bold bg-green-900/20 px-1.5 py-0.5 rounded animate-pulse">
+                                            ACTIVE ({Math.floor(existingSwarmStatus.lastBeat || 0)}s ago)
+                                        </span>
+                                    )}
+                                </div>
+                                
+                                {existingSwarmStatus?.alive ? (
+                                    <div className="space-y-2">
+                                        <div className="text-[10px] text-slate-400 border border-green-900/30 bg-green-900/10 p-2 rounded">
+                                            ✅ <b>Swarm is already running!</b><br/>
+                                            No need to redeploy. You are ready to compute.
+                                        </div>
+                                        <div className="flex space-x-2">
+                                             <button onClick={handleDeploy} className="flex-1 bg-slate-800 border border-slate-700 text-slate-500 py-2 rounded text-[9px] hover:text-white">
+                                                FORCE REDEPLOY
+                                            </button>
+                                            {colabLink && <a href={colabLink} target="_blank" rel="noopener noreferrer" className="flex-1 bg-green-900/20 border border-green-800 text-green-400 py-2 rounded text-[9px] font-bold flex items-center justify-center hover:bg-green-900/40">OPEN NOTEBOOK</a>}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {deployState === 'idle' && (
+                                            <>
+                                                <div className="text-[9px] text-slate-500 mb-2">No active swarm detected. Deploy a new kernel.</div>
+                                                <button onClick={handleDeploy} className="w-full bg-purple-900/20 border border-purple-800 text-purple-400 py-2 rounded text-xs font-bold flex items-center justify-center hover:bg-purple-900/40">DEPLOY KERNEL</button>
+                                            </>
+                                        )}
+                                        {deployState === 'success' && <a href={colabLink} target="_blank" rel="noopener noreferrer" className="w-full bg-green-900/20 border border-green-800 text-green-400 py-2 rounded text-xs font-bold flex items-center justify-center hover:bg-green-900/40">OPEN IN COLAB</a>}
+                                    </>
+                                )}
                             </div>
 
                             {/* APPS & TOOLS */}

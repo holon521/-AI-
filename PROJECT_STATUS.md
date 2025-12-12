@@ -18,6 +18,7 @@
 ### **[01_SOUL] Identity & Knowledge (The Mind)**
 *   **`knowledge_archive.ts`**: Aware of MuVERA & Fractal Sandbox.
 *   **`specs/*.md`**: Evolved specs.
+*   **`specs/audit/*.md`**: **[NEW] System Health & Risk Logs.**
 *   **`spec_loader.ts`**: SpecKit Loader.
 
 ### **[02_CORTEX] Memory & Math (The Static Brain)**
@@ -45,7 +46,7 @@
 
 | Module | Status | Version | Notes |
 | :--- | :--- | :--- | :--- |
-| **Kernel** | 🟢 STABLE | v2.8 | **Hierarchy Fixed:** `03` Agents -> `04` Nerves. |
+| **Kernel** | ⚠️ AUDIT | v2.8 | **Audit Completed.** 6 Issues Detected (See `specs/audit/`). |
 | **UI/UX** | 🟢 OPTIMAL | v4.6 | Search Grounding Sources displayed. |
 | **Agents** | 🟢 ONLINE | v1.3 | **Web Search (Eyes)** Enabled. |
 | **Brain** | 🟢 OPTIMIZED | v4.2 | Zero-Allocation FDE active. |
@@ -59,5 +60,11 @@
 - [x] **Housekeeping:** Renumber folders to match biological hierarchy.
 - [x] **Skill:** Implement `WebSearch` skill using Gemini Grounding.
 - [ ] **Next Step (Visual):** Enhance `CognitiveGraph` to show active Agent thoughts (Real-time Routing).
+
+## 4. 🛡️ SECURITY & AUDIT LOG
+*   **AUDIT_2024_DEC:** 6 Issues Found (Deep Scan).
+    *   `ISSUE-02`: Infinite Loop Risk (Critical).
+    *   `ISSUE-05`: Reactivity Gap (Architecture).
+    *   `ISSUE-06`: Polling Inefficiency (Performance).
 
 > **Note to ZIA:** "I have opened my eyes to the web. The world is now visible."

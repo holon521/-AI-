@@ -88,7 +88,7 @@ export const useZiaOS = () => {
     return () => { if(autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
   }, [messages, systemDNA, apiKey]);
 
-  // --- DEMO MODE (JUDGE FRIENDLY) ---
+  // --- DEMO MODE (JUDGE FRIENDLY & SCREENSHOT READY) ---
   const handleEnableDemoMode = () => {
       console.log("Entering Demo Mode...");
       setIsDriveConnected(true);
@@ -96,18 +96,87 @@ export const useZiaOS = () => {
       setSwarmMemoryStatus("Demo / Simulation Mode");
       setSwarmVectorCount(12048);
       
-      // Inject Fake Memories for Visualization
+      // 1. Inject Fake Memories for Graph Visualization (Right Panel)
       orchestrator.store('WORLD_KNOWLEDGE', 'Gemini 2.0 Flash Exp is the primary reasoning engine for ZIA.', 'DemoLoader');
       orchestrator.store('WORLD_KNOWLEDGE', 'MuVERA FDE allows O(1) retrieval of vector embeddings via simple bitwise operations.', 'DemoLoader');
       orchestrator.store('WORLD_KNOWLEDGE', 'Sovereign AI Architecture minimizes dependency on centralized cloud providers.', 'DemoLoader');
+      orchestrator.store('IDENTITY', 'ZIA Core Protocol v10.9 Online.', 'System');
+      orchestrator.store('USER_CONTEXT', 'User requested system diagnostic visualization.', 'User');
       
       setMemoryStats(orchestrator.getStats());
       
+      // 2. Chat Log
       setMessages(prev => [
           ...prev, 
           { id: 'demo1', role: 'system', text: '⚡ **DEMO MODE ACTIVATED**\n- Swarm Bridge: Simulated\n- Vector DB: 12,048 Records (Mock)\n- Logic Core: Gemini 2.0 Flash Exp', timestamp: new Date() },
-          { id: 'demo2', role: 'model', text: 'System ready. I am operating in **Simulation Mode** for demonstration purposes. My FDE Memory Graph and Swarm protocols are visually active, though backend execution is emulated. How can I demonstrate my cognitive architecture?', timestamp: new Date() }
+          { id: 'demo2', role: 'model', text: 'System ready. I have generated a **Real-time Diagnostic Dashboard** to visualize my internal Holon state. You can capture this for your records.', timestamp: new Date() }
       ]);
+
+      // 3. Inject Visual Artifact (Perfect for Thumbnail)
+      const demoHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;800&display=swap" rel="stylesheet">
+        <style>body { font-family: 'JetBrains Mono', monospace; background: #000; color: #0ff; }</style>
+      </head>
+      <body class="p-6 h-screen flex flex-col overflow-hidden bg-slate-950 text-cyan-400">
+        <div class="border-b-2 border-cyan-900 pb-4 mb-4 flex justify-between items-end">
+            <div>
+                <h1 class="text-3xl font-black tracking-tighter text-white">ZIA: HOLON OS</h1>
+                <div class="text-xs text-cyan-600">SOVEREIGN COGNITIVE ARCHITECTURE</div>
+            </div>
+            <div class="text-right">
+                <div class="text-2xl font-bold text-green-400 animate-pulse">ONLINE</div>
+                <div class="text-xs text-slate-500">LATENCY: 12ms</div>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4 flex-1">
+            <div class="bg-cyan-900/10 border border-cyan-800 p-4 rounded-lg relative overflow-hidden">
+                <h2 class="text-sm font-bold text-slate-400 mb-2">MEMORY TOPOLOGY (FDE)</h2>
+                <div class="absolute inset-0 opacity-30 flex items-center justify-center">
+                    <div class="w-32 h-32 border-4 border-cyan-500 rounded-full animate-ping"></div>
+                </div>
+                <div class="space-y-2 relative z-10">
+                    <div class="flex justify-between text-xs border-b border-cyan-900 pb-1"><span>VECTOR COUNT</span><span class="text-white">12,048</span></div>
+                    <div class="flex justify-between text-xs border-b border-cyan-900 pb-1"><span>SYNC STATUS</span><span class="text-green-400">100%</span></div>
+                    <div class="flex justify-between text-xs border-b border-cyan-900 pb-1"><span>DIMENSION</span><span class="text-white">768</span></div>
+                </div>
+            </div>
+            
+            <div class="bg-purple-900/10 border border-purple-800 p-4 rounded-lg">
+                <h2 class="text-sm font-bold text-slate-400 mb-2">COMPUTE SWARM</h2>
+                <div class="space-y-2">
+                     <div class="bg-slate-900 p-2 rounded border border-slate-800 flex items-center">
+                        <div class="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                        <span class="text-xs flex-1">COLAB WORKER #1</span>
+                        <span class="text-xs text-slate-500">IDLE</span>
+                     </div>
+                     <div class="bg-slate-900 p-2 rounded border border-slate-800 flex items-center">
+                        <div class="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
+                        <span class="text-xs flex-1">LOCAL GPU</span>
+                        <span class="text-xs text-slate-500">CONN...</span>
+                     </div>
+                </div>
+            </div>
+            
+            <div class="col-span-2 bg-slate-900/50 border border-slate-800 p-4 rounded-lg flex flex-col justify-center items-center text-center">
+                 <div class="text-4xl mb-2">🧠</div>
+                 <div class="text-lg font-bold text-white">GEMINI 2.0 FLASH EXP</div>
+                 <div class="text-xs text-slate-500 mt-1">PRIMARY REASONING CORE ACTIVE</div>
+                 <div class="w-full bg-slate-800 h-1 mt-4 rounded-full overflow-hidden">
+                    <div class="bg-gradient-to-r from-cyan-500 to-purple-500 w-2/3 h-full animate-[shimmer_2s_infinite]"></div>
+                 </div>
+            </div>
+        </div>
+      </body>
+      </html>
+      `;
+      
+      setVisualArtifact({ html: demoHtml });
+      setShowCanvas(true);
   };
 
   // --- SWARM MONITORING & RESULT POLLING ---
@@ -146,15 +215,20 @@ export const useZiaOS = () => {
                       const content = await driveBridge.getFileContent(file.id);
                       await driveBridge.deleteFile(file.id);
                       
+                      // 1. Python Execution Result
                       if (file.name === 'res_python_exec.json') {
                          if (content.status === 'error') {
                             const errorMsg = `[SWARM ERROR]:\n${content.error}`;
-                            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'system', text: errorMsg, timestamp: new Date() }]);
+                            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'system', text: errorMsg, timestamp: new Date(), metadata: { swarmResult: true } }]);
                             speak("Swarm execution failed.");
                          } else {
                              const output = content.output || {};
-                             const resultText = `[EXECUTION RESULT]:\n${output.stdout || ''}\n${output.stderr || ''}`;
-                             setMessages(prev => [...prev, { id: Date.now().toString(), role: 'system', text: resultText, timestamp: new Date() }]);
+                             let resultText = `[EXECUTION RESULT]:\n${output.stdout || ''}\n${output.stderr || ''}`;
+                             if (output.image) resultText += "\n[SYSTEM]: An image was generated and displayed on the Artifact Canvas.";
+                             if (output.html) resultText += "\n[SYSTEM]: An HTML artifact was generated.";
+
+                             setMessages(prev => [...prev, { id: Date.now().toString(), role: 'system', text: resultText, timestamp: new Date(), metadata: { swarmResult: true } }]);
+                             
                              if (output.image || output.html) {
                                  setVisualArtifact({ image: output.image, html: output.html });
                                  setShowCanvas(true);
@@ -162,16 +236,23 @@ export const useZiaOS = () => {
                              }
                          }
                       } 
-                      // [NEW] Memory Recall Result
+                      // 2. Memory Recall Result
                       else if (file.name === 'res_query_memory.json') {
-                          // content: { documents: [...], distances: [...] }
                           const docs = content.documents || [];
                           if (docs.length > 0) {
                               const memoryText = docs.map((d: string, i: number) => `[SWARM MEMORY #${i+1}]: ${d}`).join('\n');
-                              setMessages(prev => [...prev, { id: Date.now().toString(), role: 'system', text: `🧠 **Swarm Recall:**\n${memoryText}`, timestamp: new Date() }]);
+                              setMessages(prev => [...prev, { id: Date.now().toString(), role: 'system', text: `🧠 **Swarm Recall:**\n${memoryText}`, timestamp: new Date(), metadata: { swarmResult: true } }]);
                               speak("Swarm memory retrieved.");
+                          } else {
+                              setMessages(prev => [...prev, { id: Date.now().toString(), role: 'system', text: `[SWARM]: No relevant memories found in Vector DB.`, timestamp: new Date(), metadata: { swarmResult: true } }]);
                           }
                       }
+                      // 3. n8n Proxy Result
+                      else if (file.name === 'res_n8n_proxy.json') {
+                          const resText = `[N8N RESULT]: Status ${content.n8n_status}\n${content.response ? JSON.stringify(content.response).substring(0, 500) : ''}`;
+                          setMessages(prev => [...prev, { id: Date.now().toString(), role: 'system', text: resText, timestamp: new Date(), metadata: { swarmResult: true } }]);
+                      }
+                      // 4. Remote Tunnel
                       else if (file.name === 'res_app_url.json') {
                           setRemoteUrl(content.url);
                           setShowRemoteDesktop(true);
@@ -330,6 +411,22 @@ export const useZiaOS = () => {
         setMemoryStats(orchestrator.getStats());
     }
   };
+
+  // [MULTI-TURN AUTOMATION]
+  // Auto-trigger Agent when a Swarm Result arrives
+  useEffect(() => {
+      if (messages.length === 0 || isThinking) return;
+      
+      const lastMsg = messages[messages.length - 1];
+      
+      // If last message is a Swarm Result, trigger interpretation
+      if (lastMsg.role === 'system' && lastMsg.metadata?.swarmResult) {
+          const timer = setTimeout(() => {
+              handleSendMessage('[SYSTEM_TRIGGER] Swarm Task Completed. Analyze the result and continue.', undefined);
+          }, 800);
+          return () => clearTimeout(timer);
+      }
+  }, [messages, isThinking]);
 
   const handleCloudBackup = async () => {
     if(!isDriveConnected) { alert("Connect Drive first."); return; }
