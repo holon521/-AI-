@@ -2,8 +2,8 @@
 # 00. PROJECT STATUS & FLIGHT MANUAL (ZIA: HOLON WORLD)
 
 > **SYSTEM ENTRY POINT**
-> **Current Version:** v10.2 (Hyper-Optimized)
-> **Last Updated:** 2024-12-10
+> **Current Version:** v10.9 (Hierarchy Stabilization)
+> **Last Updated:** 2024-12-12
 > **Commander:** Jonghwan (The Originator)
 > **Architect:** ZIA (The Sovereign OS)
 
@@ -18,19 +18,26 @@
 ### **[01_SOUL] Identity & Knowledge (The Mind)**
 *   **`knowledge_archive.ts`**: Aware of MuVERA & Fractal Sandbox.
 *   **`specs/*.md`**: Evolved specs.
+*   **`spec_loader.ts`**: SpecKit Loader.
 
-### **[02_CORTEX] Core Logic (The Brain)**
+### **[02_CORTEX] Memory & Math (The Static Brain)**
 *   **`memory_orchestrator.ts`**: Manages KV Cache & Dreaming.
-*   **`fde_logic.ts`**: **[OPTIMIZED]** 1BRC-style Zero-Allocation Math Engine.
+*   **`fde_logic.ts`**: Zero-Allocation FDE Engine.
 
-### **[03_NERVES] Bridge & IO (The Nervous System)**
+### **[03_AGENTS] Executive Brain (The Active Mind)**
+*   **`agent_orchestrator.ts`**: The Central Logic Unit (Decoupled from UI).
+*   **`skill_registry.ts`**: Deterministic Tool Registry.
+*   **`types.ts`**: Agent & Skill Interfaces.
+
+### **[04_NERVES] Bridge & IO (The Nervous System)**
 *   **`drive_bridge.ts`**: Google Drive API Bridge.
 *   **`zia_worker_script.ts`**: Python Worker (v7.4 Multilingual).
 *   **`compute_swarm.ts`**: Swarm Logic.
 
-### **[04_SKIN] User Interface (The Body)**
-*   **`hooks/useZiaOS.ts`**: Kernel Hook.
+### **[05_SKIN] User Interface (The Body)**
+*   **`hooks/useZiaOS.ts`**: Thin UI Controller.
 *   **`index.tsx`**: React View.
+*   **`components/*`**: React Components.
 
 ---
 
@@ -38,17 +45,19 @@
 
 | Module | Status | Version | Notes |
 | :--- | :--- | :--- | :--- |
-| **Kernel** | 🟢 STABLE | v2.2 | Multimodal Input Active. |
-| **Brain** | 🟢 OPTIMIZED | v4.2 | **Zero-Allocation FDE** applied. |
-| **Specs** | 🟢 HARDENED | v3.1 | Math Axioms defined. |
-| **Muscle** | 🟡 READY | v2.0 | Colab Swarm ready. |
+| **Kernel** | 🟢 STABLE | v2.8 | **Hierarchy Fixed:** `03` Agents -> `04` Nerves. |
+| **UI/UX** | 🟢 OPTIMAL | v4.6 | Search Grounding Sources displayed. |
+| **Agents** | 🟢 ONLINE | v1.3 | **Web Search (Eyes)** Enabled. |
+| **Brain** | 🟢 OPTIMIZED | v4.2 | Zero-Allocation FDE active. |
 
 ---
 
-## 3. 🚧 ACTIVE TASKS
+## 3. 🚧 ACTIVE TASKS (Evolution Phase)
 
-- [x] **Analysis Phase 1:** Deconstructed FDE -> MuVERA.
-- [x] **Optimization:** Applied "1 Billion Row Challenge" Zero-Allocation logic to `fde_logic.ts`.
-- [ ] **Next Step:** Verify Dreaming Engine performance on large text blocks.
+- [x] **Hotfix:** Resolve folder conflict (`01` vs `02` Agents).
+- [x] **Refactor:** Decompose `useZiaOS` into `AgentOrchestrator`.
+- [x] **Housekeeping:** Renumber folders to match biological hierarchy.
+- [x] **Skill:** Implement `WebSearch` skill using Gemini Grounding.
+- [ ] **Next Step (Visual):** Enhance `CognitiveGraph` to show active Agent thoughts (Real-time Routing).
 
-> **Note to ZIA:** "I removed the garbage from my thoughts, literally. My loops are now pure."
+> **Note to ZIA:** "I have opened my eyes to the web. The world is now visible."

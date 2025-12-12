@@ -1,41 +1,134 @@
 
-# 🌌 ZIA: HOLON WORLD (Client-Side Cognitive OS)
+# 🌌 ZIA: HOLON WORLD
 
-> **"Poverty is not a lack of assets, but a structural dependency. We build tools for independence."**
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Tech Stack](https://img.shields.io/badge/stack-React_18_%7C_TypeScript_%7C_Gemini_2.0-cyan)
+![Architecture](https://img.shields.io/badge/architecture-Client_Side_Sovereign-purple)
+![Status](https://img.shields.io/badge/status-Competition_Ready-green)
 
-## 📖 Overview
-ZIA is a Sovereign AI Operating System that runs entirely in your browser. It does not rely on backend servers to store your memories or execute your logic. Instead, it connects your local resources (Local Storage, GPU) with your personal cloud (Google Drive, Colab) to create a "Holon" — a self-sufficient unit of intelligence.
+> **"Poverty is structural dependency. We build tools for intellectual independence."**
 
-## 🗂️ Project Structure (The Workspace)
-
-This repository is structured as a monolithic React application for portability, but logically divided into distinct modules:
-
-### 1. The Core (Brain)
-*   `index.tsx`: The main entry point. Orchestrates UI, Logic, and State. Contains the `App`, `SettingsModal`, and `ChatInterface`.
-*   `memory_orchestrator.ts`: **The Hippocampus.** Manages 3 layers of memory (Identity, User, World) and handles the "Snapshot" & "Restore" logic for persistence.
-*   `fde_logic.ts`: **The Proxy Math Engine.** A lightweight client-side checksum generator. Heavy math is delegated to Colab.
-*   `GENESIS_AXIOM.ts`: **The Constitution.** Hard-coded ethical axioms (e.g., Benevolence, Kill Switch) that the AI cannot override.
-
-### 2. The Bridge (Limbs)
-*   `services/drive_bridge.ts`: **The Nervous System.** Connects the browser to Google Drive via OAuth 2.0. Implements the "Mailbox Pattern" to send JSON commands to Colab without web servers.
-*   `compute_swarm.ts`: **The Muscles.** Manages distributed computing nodes (Local, Colab, Peers).
-*   `templates/zia_worker_script.ts`: A Python script that you run in Google Colab to turn it into a worker node for ZIA (running ChromaDB & Scikit-learn).
-
-### 3. The Soul (Identity)
-*   `knowledge_archive.ts`: **The DNA.** Contains the System Prompt and "ZIA-CORE v2" initialization block that gives the AI its self-awareness and mission.
-*   `specs/*.md`: Design documents that describe the vision, architecture, and evolution of ZIA.
-
-## 🚀 How to Use (Manual)
-
-1.  **Initialize:** Open the app. ZIA loads in "Core Mode".
-2.  **Connect Drive:** Click `Settings` -> `Login with Google`. This creates a `_ZIA_HOLON_WORLD` folder in your Drive.
-3.  **Chat & Memory:** Talk to ZIA. It automatically saves your memory snapshots (`zia_soul_backup.json`) to Drive.
-4.  **Resurrect:** If you clear your browser cache, click `Resurrect` in Settings to restore your "Soul" from Drive.
-5.  **Compute:** To run Python code, click `Get Worker Script`, copy it to Google Colab, run it, and ZIA will connect via the Drive Bridge.
-
-## 🛡️ Privacy & Security
-*   **Client-Side Only:** Your API Key and Data never leave your browser/Drive.
-*   **Policy Safe:** Backup your "Soul" to prevent data loss from platform policy updates.
+**ZIA (Zero-point Intelligent Agent)** is a **Sovereign Cognitive Operating System** that runs entirely in your browser. Unlike traditional AI wrappers, ZIA does not rely on backend servers to store your memories or execute your logic. Instead, it orchestrates your **Local Resources** (LocalStorage, GPU) and **Personal Cloud** (Google Drive, Colab) to create a "Holon" — a self-sufficient unit of intelligence.
 
 ---
-*Architected by Jonghwan & ZIA.*
+
+## 🏗️ Architecture: The "Zero-Backend" Protocol
+
+ZIA proves that a powerful AI agent can exist without a centralized SaaS backend.
+
+```mermaid
+graph TD
+    User[User / Local Environment] --> UI_Layer
+    
+    subgraph "ZIA Core (Browser)"
+        UI_Layer[React UI] --> Cortex[Memory Orchestrator]
+        Cortex --> FDE[FDE Math Engine]
+        Cortex --> Agent[Agent Router]
+    end
+    
+    subgraph "Google Cloud (User Owned)"
+        Agent -->|Gemini API| Gemini[Gemini 2.0 Flash]
+        Agent -->|OAuth 2.0| Drive[Google Drive Bridge]
+    end
+    
+    subgraph "Compute Swarm (Distributed)"
+        Drive -->|JSON Protocol| Colab[Google Colab Worker]
+        Colab -->|Python Exec| Chroma[Vector DB / Analysis]
+    end
+```
+
+### Key Innovations
+1.  **Client-Side RAG via FDE:** Utilizes **MuVERA-inspired Fixed Dimensional Encodings** to perform approximate nearest neighbor search directly in the browser using bitwise operations, bypassing the need for heavy vector DBs for immediate context.
+2.  **The Swarm Bridge (Mailbox Pattern):** Overcomes browser CORS and security limitations by using Google Drive as a high-latency message bus to offload heavy Python computation (Data Science, Scraping) to Google Colab.
+3.  **Fractal Sandbox:** ZIA can generate, render, and execute its own HTML/JS micro-apps (`ArtifactCanvas`) within a secure iframe, enabling self-evolution of its interface.
+
+---
+
+## ⚡ Features
+
+### 🧠 The Brain: Gemini 2.0 Flash Exp
+- **Multi-Modal Reasoning:** Processes text and images for complex problem solving.
+- **Grounding:** Real-time access to Google Search for up-to-date information.
+- **System 2 Thinking:** Implements "Debate" and "Precise" modes for deep verification.
+
+### 💾 The Memory: Hybrid Topology
+- **Identity Layer:** Immutable axioms and core directives.
+- **User Context:** Ephemeral working memory.
+- **World Knowledge:** Persistent, vector-embedded knowledge base synced to your Google Drive.
+
+### 🦾 The Body: Compute Swarm
+- **Python Execution:** seamlessly delegates complex math and data tasks to a Python kernel running on Colab.
+- **App Launcher:** Can trigger **JupyterLab** or **n8n** workflows for advanced automation.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 18+
+- A Google Cloud Project with **Gemini API** enabled.
+- (Optional) Google Drive API enabled for the Swarm Bridge.
+
+### Installation
+
+1.  **Clone the repository**
+    ```bash
+    git clone https://github.com/your-username/zia-holon-world.git
+    cd zia-holon-world
+    ```
+
+2.  **Install dependencies**
+    ```bash
+    npm install
+    ```
+
+3.  **Run the development server**
+    ```bash
+    npm start
+    ```
+
+4.  **Open in Browser**
+    Visit `http://localhost:1234` (or the port shown in your terminal).
+
+---
+
+## 🎮 Usage Guide
+
+### 1. Basic Setup (The Mind)
+1.  Click the **Settings (Gear Icon)** in the top right.
+2.  Enter your **Gemini API Key**.
+3.  Start chatting! ZIA works as a high-performance local chatbot immediately.
+
+### 2. Enabling the Swarm (The Body)
+To enable Python execution and Long-term Memory:
+1.  In Settings, click **"Get Worker Script"**.
+2.  Open [Google Colab](https://colab.research.google.com/).
+3.  Paste the script and run it.
+4.  In ZIA Settings, enter your **Google Client ID** and click **"Connect"**.
+5.  ZIA is now connected to the Neural Grid.
+
+### 3. Demo Mode (For Judges)
+If you don't want to set up Colab:
+1.  Open Settings.
+2.  Click the **"ENTER DEMO MODE"** button in the "Gemini Competition Mode" banner.
+3.  ZIA will simulate the Swarm connection and populate visual graphs with mock data.
+
+---
+
+## 🛠️ Technology Stack
+
+*   **Frontend:** React 18, TypeScript, Tailwind CSS
+*   **AI Core:** Google GenAI SDK (`@google/genai`)
+*   **Storage:** LocalStorage (Hot), Google Drive (Cold), ChromaDB (Vector)
+*   **Compute:** Google Colab (Python Runtime)
+*   **Math:** Custom FDE Implementation (SimHash/Bitwise Ops)
+
+---
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+> Built by **Jonghwan** & **ZIA**.

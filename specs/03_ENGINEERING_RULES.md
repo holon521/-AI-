@@ -1,11 +1,15 @@
+
 # 03. ENGINEERING RULES & EXCLUSIONS
 
-> **Rule:** "Delete the part or process."
+> **Rule:** "Delete the part or process. Keep it atomic."
 
 ## 1. CODING PRINCIPLES
 - **No Bloat:** Do not import heavy libraries (like Three.js or TensorFlow.js) into the main bundle unless critical. Use the **Swarm** (Colab) for heavy lifting.
 - **Strict Typing:** TypeScript `any` is forbidden unless wrapping a legacy JS library.
-- **Component Atomicity:** One component, one responsibility. If a file exceeds 300 lines, refactor.
+- **Atomic Modularity (The Rule of 200):**
+    - No file should exceed 200 lines of code. If it does, split it.
+    - **Single Responsibility:** Network logic (API calls) must be separated from Business Logic (Routing/Reasoning).
+    - **UI Hooks:** separate State (`useState`) from Logic (`useEffect` / Handlers).
 
 ## 2. EXCLUSIONS (WHAT WE DO NOT DO)
 - **No Backend Servers:** We do not deploy AWS/Vercel backends. ZIA lives in the browser and connects directly to APIs.

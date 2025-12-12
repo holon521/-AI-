@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { SPECS, SpecKey } from '../../spec_loader';
+import { SPECS, SpecKey } from '../../01_SOUL/spec_loader'; // [UPDATED PATH]
 
 interface BlueprintViewerProps {
     isOpen: boolean;

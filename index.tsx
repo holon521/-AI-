@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useZiaOS } from './hooks/useZiaOS';
-import { PYTHON_WORKER_SCRIPT } from './03_NERVES/zia_worker_script'; 
+import { PYTHON_WORKER_SCRIPT } from './04_NERVES/zia_worker_script'; 
 
 // Components
 import { Header } from './components/layout/Header';
@@ -51,10 +51,12 @@ const App = () => {
         isSwarmActive={os.isSwarmActive} 
         onShowSettings={() => setShowSettings(true)} 
         onShowSpec={() => setShowSpec(true)} 
+        onToggleCanvas={() => os.setShowCanvas(!os.showCanvas)}
+        isCanvasOpen={os.showCanvas}
       />
       
       {os.systemDNA.layoutMode !== 'FOCUS' && (
-          <LeftPanel nodes={os.graphNodes} />
+          <LeftPanel taskLog={os.taskLog} />
       )}
       
       <ChatInterface 
@@ -63,6 +65,12 @@ const App = () => {
         onSendMessage={(text, attachment) => os.handleSendMessage(text, attachment, () => setShowSettings(true))}
         isMuted={os.isMuted}
         onToggleMute={() => os.setIsMuted(!os.isMuted)}
+        // Agentic Controls Injection
+        activeModel={os.activeModel}
+        onSetModel={os.setActiveModel}
+        reasoningMode={os.systemDNA.reasoningMode}
+        onSetReasoningMode={(mode) => os.setSystemDNA(prev => ({ ...prev, reasoningMode: mode }))}
+        llmProvider={os.llmProvider}
       />
       
       {os.systemDNA.layoutMode !== 'FOCUS' && os.systemDNA.layoutMode !== 'WRITER' && (
@@ -71,16 +79,17 @@ const App = () => {
             activeSectors={os.activeSectors} 
             isSwarmActive={os.isSwarmActive} 
             swarmMemoryStatus={os.swarmMemoryStatus} 
-            swarmVectorCount={os.swarmVectorCount} 
+            swarmVectorCount={os.swarmVectorCount}
+            activeTaskLog={os.taskLog} // [NEW] Pass logs for visualizer
           />
       )}
       
       <ArtifactCanvas 
-        isOpen={os.showCanvas || os.systemDNA.layoutMode === 'CODER'} // Auto-open in Coder mode if content exists
+        isOpen={os.showCanvas || os.systemDNA.layoutMode === 'CODER'} 
         content={os.canvasContent} 
         visualArtifact={os.visualArtifact} 
         onClose={() => os.setShowCanvas(false)} 
-        onSignal={os.handleArtifactSignal} // [NEW] Bi-directional Bridge
+        onSignal={os.handleArtifactSignal} 
       />
       
       <BlueprintViewer isOpen={showSpec} onClose={() => setShowSpec(false)} />
@@ -94,6 +103,12 @@ const App = () => {
         setApiKey={os.setApiKey}
         activeModel={os.activeModel}
         setActiveModel={os.setActiveModel}
+        llmProvider={os.llmProvider}
+        setLlmProvider={os.setLlmProvider}
+        baseUrl={os.baseUrl}
+        setBaseUrl={os.setBaseUrl}
+        reasoningMode={os.systemDNA.reasoningMode}
+        setReasoningMode={(m) => os.setSystemDNA(prev => ({...prev, reasoningMode: m}))}
         isDriveConnected={os.isDriveConnected} 
         onSimulateConnection={() => os.setIsDriveConnected(true)}
         onDisconnect={() => os.setIsDriveConnected(false)}
@@ -101,6 +116,7 @@ const App = () => {
         onCloudBackup={os.handleCloudBackup} 
         onCloudRestore={os.handleCloudRestore}
         onTestBrain={os.testBrainConnection}
+        onEnableDemoMode={os.handleEnableDemoMode} // [NEW]
       />
     </div>
   );

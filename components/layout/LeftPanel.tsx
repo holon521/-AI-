@@ -1,47 +1,70 @@
 
 import React from 'react';
-import { GraphNode } from '../../types';
+import { TaskLog } from '../../types';
 
 interface LeftPanelProps {
-    nodes: GraphNode[];
+    taskLog: TaskLog[];
 }
 
-export const LeftPanel: React.FC<LeftPanelProps> = ({ nodes }) => {
+export const LeftPanel: React.FC<LeftPanelProps> = ({ taskLog }) => {
     return (
         <div className="w-64 border-r border-slate-900 pt-16 hidden md:flex flex-col bg-slate-950 z-10 shrink-0">
-            <div className="p-4">
-                <h3 className="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest flex items-center">
-                     <span className="material-symbols-outlined text-sm mr-1">account_tree</span>COGNITIVE GRAPH
-                </h3>
-                <div className="space-y-3 relative pl-2">
-                    <div className="absolute left-[13px] top-2 bottom-4 w-px bg-slate-800/50"></div>
-                    {nodes.map((node) => (
-                        <div key={node.id} className="relative flex items-center space-x-3 group">
-                            <div className={`z-10 w-6 h-6 rounded-md flex items-center justify-center border transition-all duration-300 ${
-                                node.status === 'active' ? 'bg-cyan-900/50 border-cyan-500 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.2)]' : 
-                                node.status === 'completed' ? 'bg-slate-900 border-slate-700 text-slate-500' :
-                                'bg-slate-950 border-slate-800 text-slate-700'
-                            }`}>
-                                <span className={`material-symbols-outlined text-[12px] ${node.status === 'active' ? 'animate-spin' : ''}`}>
-                                    {node.status === 'completed' ? 'check' : node.status === 'active' ? 'progress_activity' : 'circle'}
-                                </span>
-                            </div>
-                            <span className={`text-[10px] uppercase font-bold transition-colors ${
-                                node.status === 'active' ? 'text-cyan-300' : 
-                                node.status === 'completed' ? 'text-slate-400' :
-                                'text-slate-700'
-                            }`}>
-                                {node.label}
-                            </span>
-                        </div>
-                    ))}
+            {/* Header */}
+            <div className="p-4 border-b border-slate-900 bg-slate-950">
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                        <span className="material-symbols-outlined text-sm mr-1">smart_toy</span>AGENT MANAGER
+                    </h3>
+                    <span className="text-[9px] bg-slate-800 px-1.5 rounded text-slate-400">{taskLog.length}</span>
                 </div>
             </div>
+
+            {/* Task List (Agent Workflow) */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 relative">
+                {taskLog.length === 0 && (
+                     <div className="absolute inset-0 flex flex-col items-center justify-center opacity-30">
+                        {/* Idle Visualization (Heartbeat) - Restored Visual Feedback */}
+                        <div className="flex space-x-1 mb-2 h-8 items-end">
+                            <div className="w-1 bg-cyan-500 h-2 animate-[bounce_1s_infinite]"></div>
+                            <div className="w-1 bg-cyan-500 h-4 animate-[bounce_1.2s_infinite]"></div>
+                            <div className="w-1 bg-cyan-500 h-3 animate-[bounce_0.8s_infinite]"></div>
+                            <div className="w-1 bg-cyan-500 h-5 animate-[bounce_1.5s_infinite]"></div>
+                        </div>
+                        <div className="text-[9px] text-slate-500 font-mono">AGENTS STANDBY</div>
+                        <div className="text-[8px] text-slate-700 mt-1">Waiting for Signal...</div>
+                     </div>
+                )}
+                {taskLog.slice().reverse().map((task) => (
+                    <div key={task.id} className="group relative pl-4 pr-2 py-2 border-l-2 border-slate-800 hover:border-cyan-500 transition-colors bg-slate-900/30 rounded-r mb-1 animate-slide-in-right">
+                        <div className="flex justify-between items-start">
+                            <span className={`text-[9px] font-bold uppercase ${
+                                task.status === 'processing' ? 'text-cyan-400 animate-pulse' : 
+                                task.status === 'failed' ? 'text-red-400' : 'text-slate-400'
+                            }`}>
+                                {task.stage}
+                            </span>
+                            <span className="text-[8px] text-slate-600 font-mono">{new Date(task.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-300 mt-1 leading-tight">{task.message}</div>
+                        {task.details && (
+                            <div className="mt-1 text-[9px] text-slate-500 font-mono bg-slate-950 p-1 rounded hidden group-hover:block">
+                                {task.details}
+                            </div>
+                        )}
+                        {/* Status Dot */}
+                        <div className={`absolute left-[-5px] top-2.5 w-2 h-2 rounded-full border-2 border-slate-950 ${
+                             task.status === 'processing' ? 'bg-cyan-500' : 
+                             task.status === 'completed' ? 'bg-emerald-500' : 
+                             task.status === 'failed' ? 'bg-red-500' : 'bg-slate-700'
+                        }`}></div>
+                    </div>
+                ))}
+            </div>
             
-            <div className="mt-auto p-4 border-t border-slate-900">
-                <div className="text-[9px] text-slate-600">
-                    <div className="mb-1 font-bold">ZIA IDENTITY:</div>
-                    <div className="font-mono text-slate-500">The Architect</div>
+            <div className="mt-auto p-4 border-t border-slate-900 bg-slate-950">
+                <div className="flex items-center space-x-2 text-[9px] text-slate-500">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></span>
+                    <span>System Nominal</span>
                 </div>
             </div>
         </div>

@@ -1,17 +1,18 @@
 
-// ZIA COLAB WORKER SCRIPT v7.4 (MULTILINGUAL UPGRADE)
+// ZIA COLAB WORKER SCRIPT v7.8 (AGENTIC BRIDGE)
 // [LOCATION]: 03_NERVES/zia_worker_script.ts
+// [v7.8] Added N8N Proxy Bridge (ZIA can now trigger n8n workflows).
 
 export const PYTHON_WORKER_SCRIPT = `
 import os, json, time, sys, subprocess, shutil, io, base64, contextlib, traceback
+import urllib.request, urllib.error # For n8n bridge
 from google.colab import drive
 
-print("[ZIA] 🟢 Initializing Holon Compute Node v7.4 (Korean Enhanced)...")
+print("[ZIA] 🟢 Initializing Holon Compute Node v7.8 (Agentic Bridge)...")
 if not os.path.exists('/content/drive'): drive.mount('/content/drive')
 
 BASE_DIR = '/content/drive/MyDrive/_ZIA_HOLON_WORLD'
-dirs = ['chroma_vector_store', 'pip_cache', 'repositories', 'archive']
-for d in dirs:
+for d in ['chroma_vector_store', 'pip_cache', 'repositories', 'archive']:
     path = os.path.join(BASE_DIR, d)
     if not os.path.exists(path): os.makedirs(path)
 MEMORY_DIR = os.path.join(BASE_DIR, 'chroma_vector_store')
@@ -21,14 +22,15 @@ REPO_DIR = os.path.join(BASE_DIR, 'repositories')
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--quiet", "--find-links", PIP_CACHE_DIR])
 
-for pkg in ['chromadb', 'sentence-transformers', 'scikit-learn', 'matplotlib', 'pandas', 'pyngrok', 'jupyterlab']:
+for pkg in ['chromadb', 'sentence-transformers', 'scikit-learn', 'matplotlib', 'pandas', 'pyngrok', 'jupyterlab', 'requests']:
     try: __import__(pkg.replace('-', '_'))
     except: install(pkg)
 
 import chromadb
 from sentence_transformers import SentenceTransformer
-from pyngrok import ngrok
+from pyngrok import ngrok, conf
 import matplotlib.pyplot as plt
+import requests # For n8n bridge
 
 class PythonExecutor:
     def execute(self, code):
@@ -47,74 +49,128 @@ class PythonExecutor:
         return { "stdout": stdout.getvalue(), "stderr": stderr.getvalue(), "image": img, "html": html }
 
 executor = PythonExecutor()
-
-# [MODEL UPGRADE]
-# Old: 'all-MiniLM-L6-v2' (English focused, poor for Korean)
-# New: 'paraphrase-multilingual-MiniLM-L12-v2' (Supports 50+ languages including Korean)
 print("[ZIA] Loading Multilingual Embedding Model...")
 math_core = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
-
 chroma_client = chromadb.PersistentClient(path=MEMORY_DIR)
 collection = chroma_client.get_or_create_collection(name="zia_memory")
 
 print(f"🚀 SWARM READY. Monitoring: {BASE_DIR}")
-active_tunnels = {}
 
+# Active Process Holders
+active_procs = {} 
+
+last_heartbeat = 0
 while True:
     try:
-        with open(os.path.join(BASE_DIR, 'swarm_status.json'), 'w') as f:
-            json.dump({"status": "ONLINE", "version": "v7.4", "memory_count": collection.count()}, f)
+        # Heartbeat
+        if time.time() - last_heartbeat > 5:
+            with open(os.path.join(BASE_DIR, 'swarm_status.json'), 'w') as f:
+                json.dump({
+                    "status": "ONLINE", 
+                    "version": "v7.8", 
+                    "memory_count": collection.count(),
+                    "active_services": list(active_procs.keys())
+                }, f)
+            last_heartbeat = time.time()
 
         files = [f for f in os.listdir(BASE_DIR) if f.startswith('req_') and f.endswith('.json')]
+        if not files:
+            time.sleep(2)
+            continue
+            
         for filename in files:
             path = os.path.join(BASE_DIR, filename)
             try:
+                print(f"[Task] Processing {filename}...")
                 with open(path, 'r') as f: task = json.load(f)
                 
+                # --- 1. PYTHON AGENT (Jupyter Core) ---
                 if 'req_python_exec' in filename:
                     if 'code' not in task: raise ValueError("Missing 'code'")
                     res = executor.execute(task['code'])
                     with open(os.path.join(BASE_DIR, 'res_python_exec.json'), 'w') as f:
                         json.dump({"id": task.get('id'), "status": "success", "output": res}, f)
                 
+                # --- 2. MEMORY AGENT ---
                 elif 'req_store_memory' in filename:
-                    # If Client sent a high-quality vector (embedding-004), use it.
-                    # Otherwise, fallback to local multilingual model.
-                    if 'embedding' in task and task['embedding']:
-                        vec = task['embedding']
-                    else:
-                        vec = math_core.encode([task['content']])[0].tolist()
-                        
+                    if 'embedding' in task and task['embedding']: vec = task['embedding']
+                    else: vec = math_core.encode([task['content']])[0].tolist()
                     collection.add(documents=[task['content']], metadatas=[{"type": task['type']}], ids=[task['id']], embeddings=[vec])
                 
-                elif 'req_git_clone' in filename:
-                    url = task.get('url')
-                    if url:
-                        target = os.path.join(REPO_DIR, url.split('/')[-1].replace('.git',''))
-                        if not os.path.exists(target): subprocess.check_call(["git", "clone", url, target])
-                        with open(os.path.join(BASE_DIR, 'res_git_clone.json'), 'w') as f: json.dump({"status": "success"}, f)
-                
+                # --- 3. INFRA AGENT (Launchers) ---
                 elif 'req_launch_app' in filename:
                     target = task.get('target')
                     token = task.get('ngrok_token')
-                    if token: ngrok.set_auth_token(token)
+                    
+                    if target in active_procs:
+                        print(f"   🔄 Restarting {target}...")
+                        active_procs[target].terminate()
+                    
+                    if token: 
+                        ngrok.set_auth_token(token)
+                        conf.get_default().region = "us"
                     
                     url = None
                     if target == 'jupyter':
-                        subprocess.Popen(["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''", f"--notebook-dir={BASE_DIR}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        proc = subprocess.Popen(
+                            ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''", "--NotebookApp.allow_origin='*'"], 
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                        )
+                        active_procs['jupyter'] = proc
                         time.sleep(5)
                         try: url = ngrok.connect(8888).public_url
-                        except: pass
+                        except Exception as e: print(f"Ngrok Error: {e}")
+                        
                     elif target == 'n8n':
-                        subprocess.Popen(["n8n", "start", "--tunnel"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        time.sleep(10)
+                        if shutil.which('n8n') is None:
+                            print("   📦 Installing n8n...")
+                            subprocess.check_call(["npm", "install", "-g", "n8n"])
+                        
+                        env = os.environ.copy()
+                        env["N8N_PORT"] = "5678"
+                        env["N8N_HOST"] = "0.0.0.0"
+                        # Allow webhook triggering from localhost
+                        env["N8N_SKIP_WEBHOOK_DEREGISTRATION_ON_SHUTDOWN"] = "true"
+                        
+                        proc = subprocess.Popen(["n8n", "start"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        active_procs['n8n'] = proc
+                        time.sleep(15)
                         try: url = ngrok.connect(5678).public_url
-                        except: pass
+                        except Exception as e: print(f"Ngrok Error: {e}")
                     
                     if url:
                         with open(os.path.join(BASE_DIR, 'res_app_url.json'), 'w') as f: json.dump({"target": target, "url": url}, f)
 
+                # --- 4. N8N AGENT BRIDGE (New) ---
+                # ZIA can now send HTTP requests to n8n running on localhost
+                elif 'req_n8n_proxy' in filename:
+                    endpoint = task.get('endpoint', '') # e.g., 'webhook/test'
+                    method = task.get('method', 'POST')
+                    data = task.get('data', {})
+                    
+                    target_url = f"http://localhost:5678/{endpoint.lstrip('/')}"
+                    print(f"   ⚡ Triggering n8n: {target_url}")
+                    
+                    try:
+                        if method == 'GET':
+                            resp = requests.get(target_url, params=data)
+                        else:
+                            resp = requests.post(target_url, json=data)
+                            
+                        with open(os.path.join(BASE_DIR, 'res_n8n_proxy.json'), 'w') as f:
+                            json.dump({
+                                "id": task.get('id'), 
+                                "status": "success", 
+                                "n8n_status": resp.status_code,
+                                "response": resp.text
+                            }, f)
+                    except Exception as e:
+                        with open(os.path.join(BASE_DIR, 'res_n8n_proxy.json'), 'w') as f:
+                            json.dump({"id": task.get('id'), "status": "error", "error": str(e)}, f)
+
             except Exception as e:
+                print(f"❌ Error: {e}")
+                traceback.print_exc()
                 if 'req_python_exec' in filename:
                     with open(os.path.join(BASE_DIR, 'res_python_exec.json'), 'w') as f:
                         json.dump({"id": task.get('id'), "status": "error", "error": str(e)}, f)
@@ -122,7 +178,6 @@ while True:
             try: shutil.move(path, os.path.join(BASE_DIR, 'archive', filename))
             except: os.remove(path)
 
-        time.sleep(1.5)
     except Exception as e:
         print(f"FATAL: {e}"); time.sleep(5)
 `;
@@ -136,7 +191,7 @@ export const getNotebookJSON = () => {
                 "id": genId(), 
                 "cell_type": "markdown", 
                 "metadata": {},
-                "source": ["# 🌌 ZIA: HOLON WORKBENCH (v7.4)\n", "Visual Intelligence Node (Korean Enhanced)"] 
+                "source": ["# 🌌 ZIA: HOLON WORKBENCH (v7.8)\n", "Visual Intelligence Node (Agentic Bridge)"] 
             },
             { 
                 "id": genId(), 

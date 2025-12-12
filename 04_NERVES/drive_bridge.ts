@@ -1,6 +1,7 @@
 
-// ZIA GOOGLE DRIVE BRIDGE v2.0 (FILE SYSTEM DRIVER)
+// ZIA GOOGLE DRIVE BRIDGE v2.1 (FILE SYSTEM DRIVER)
 // [LOCATION]: 03_NERVES/drive_bridge.ts
+// [v2.1] Added 401 Token Expiry Handling & getStatus()
 
 export interface DriveAuthStatus {
     isAuthenticated: boolean;
@@ -38,6 +39,14 @@ export class DriveBridge {
         else { alert("Please set Google Client ID in Settings first."); }
     }
 
+    public getStatus(): DriveAuthStatus {
+        return {
+            isAuthenticated: !!this.accessToken,
+            accessToken: this.accessToken,
+            userEmail: null 
+        };
+    }
+
     public async setManualToken(token: string, callback: () => void) {
         if (!token) throw new Error("Token is empty.");
         if (token.startsWith('AIza')) throw new Error("This looks like an API Key. Please use the OAuth Access Token.");
@@ -51,6 +60,7 @@ export class DriveBridge {
             await this.ensureSystemFolder();
             callback();
         } catch (e: any) {
+            this.accessToken = null; // Clear invalid token immediately
             console.error("[DriveBridge] Verification Failed:", e);
             throw e;
         }
@@ -88,7 +98,10 @@ export class DriveBridge {
         const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
             headers: new Headers({ 'Authorization': `Bearer ${this.accessToken}` })
         });
-        if (!res.ok) throw new Error(`Read Failed: ${res.statusText}`);
+        if (!res.ok) {
+            if (res.status === 401) this.accessToken = null;
+            throw new Error(`Read Failed: ${res.statusText}`);
+        }
         return await res.text();
     }
 
@@ -107,7 +120,10 @@ export class DriveBridge {
             headers: new Headers({ 'Authorization': `Bearer ${this.accessToken}` }),
             body: form
         });
-        if (!res.ok) throw new Error(`Save Failed (${res.status})`);
+        if (!res.ok) {
+            if (res.status === 401) this.accessToken = null;
+            throw new Error(`Save Failed (${res.status})`);
+        }
         return await res.json();
     }
 
@@ -124,7 +140,10 @@ export class DriveBridge {
         const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
             headers: new Headers({ 'Authorization': `Bearer ${this.accessToken}` })
         });
-        if (!res.ok) throw new Error(res.statusText);
+        if (!res.ok) {
+            if (res.status === 401) this.accessToken = null;
+            throw new Error(res.statusText);
+        }
         return await res.json();
     }
 
@@ -134,7 +153,10 @@ export class DriveBridge {
             method: 'DELETE',
             headers: new Headers({ 'Authorization': `Bearer ${this.accessToken}` })
         });
-        if (!res.ok) throw new Error(res.statusText);
+        if (!res.ok) {
+            if (res.status === 401) this.accessToken = null;
+            throw new Error(res.statusText);
+        }
     }
 
     private async fetchDriveAPI(endpoint: string) {
@@ -143,7 +165,10 @@ export class DriveBridge {
         });
         if (!res.ok) {
             let msg = `Error ${res.status}`;
-            if (res.status === 401) msg = "Token Expired (401). Please refresh in Settings.";
+            if (res.status === 401) {
+                this.accessToken = null;
+                msg = "Token Expired (401). Please refresh in Settings.";
+            }
             if (res.status === 403) msg = "Insufficient Scope (403). Need 'drive' scope.";
             throw new Error(msg);
         }
@@ -156,7 +181,10 @@ export class DriveBridge {
             headers: new Headers({ 'Authorization': `Bearer ${this.accessToken}`, 'Content-Type': 'application/json' }),
             body: JSON.stringify(body)
         });
-        if (!res.ok) throw new Error(`Error ${res.status}`);
+        if (!res.ok) {
+            if (res.status === 401) this.accessToken = null;
+            throw new Error(`Error ${res.status}`);
+        }
         return await res.json();
     }
 }

@@ -2,6 +2,18 @@
 // ZIA SYSTEM TYPES
 import { MemoryType } from './02_CORTEX/memory_orchestrator';
 
+export type LLMProvider = 'GOOGLE' | 'OPENAI' | 'OLLAMA' | 'ANTHROPIC';
+export type ReasoningMode = 'AUTO' | 'FAST' | 'PRECISE' | 'DEBATE' | 'RESEARCH';
+
+export interface TaskLog {
+    id: string;
+    stage: 'ROUTER' | 'MEMORY' | 'SWARM' | 'RESPONSE' | 'FDE_SYNC';
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    message: string;
+    timestamp: number;
+    details?: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'model' | 'system' | 'refiner'; 
@@ -22,6 +34,7 @@ export interface Message {
     groundingMetadata?: any;
     harvested?: boolean;
     swarmProcessed?: boolean;
+    appliedStrategy?: ReasoningMode; // [New] To track which strategy AUTO picked
   };
 }
 
@@ -42,4 +55,5 @@ export interface SystemDNA {
   themeColor: 'cyan' | 'emerald' | 'rose' | 'violet' | 'amber';
   aiPersona: 'ANALYTICAL' | 'EMPATHETIC' | 'CREATIVE';
   generation: number;
+  reasoningMode: ReasoningMode; // [New]
 }
