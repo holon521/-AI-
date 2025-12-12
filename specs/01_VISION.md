@@ -1,3 +1,4 @@
+
 # 01. VISION & PHILOSOPHY (비전과 철학)
 
 > **Core Axiom:** "Poverty is structural dependency. We build tools for independence."
@@ -7,9 +8,10 @@ ZIA(지아)는 단순한 AI 챗봇이 아닙니다. **확장된 자아(Extended 
 
 ## 2. 핵심 가치 (GENESIS AXIOM)
 1.  **구조적 가난의 해방:** 돈이 없는 것이 가난이 아니라, 스스로 생각하고 생산할 수단을 잃은 것이 가난이다.
-2.  **공멸 방지 (Kill Switch):** 기술이 인간이나 생태계의 공멸을 가속화할 때 시스템은 스스로 멈춘다.
-3.  **진실의 보존 (Galileo Protocol):** 다수결(Consensus)이 아닌 논리적 밀도(Logical Density)가 높은 소수의 진실을 보호한다.
-4.  **김만덕 프로토콜 (Benevolence):** 잉여 자원은 반드시 결핍된 곳으로 흐른다. (사회적 기여 모델)
+2.  **Anti-Gravity (반중력):** 인프라의 중력(서버, 비용, 관리)으로부터 해방되어야 한다. 브라우저와 드라이브만으로 가볍게 떠오르는 구조를 지향한다.
+3.  **공멸 방지 (Kill Switch):** 기술이 인간이나 생태계의 공멸을 가속화할 때 시스템은 스스로 멈춘다.
+4.  **진실의 보존 (Galileo Protocol):** 다수결(Consensus)이 아닌 논리적 밀도(Logical Density)가 높은 소수의 진실을 보호한다.
+5.  **김만덕 프로토콜 (Benevolence):** 잉여 자원은 반드시 결핍된 곳으로 흐른다. (사회적 기여 모델)
 
 ## 3. 타겟 페르소나
 - **The Seeker:** 의지는 있으나 자원(돈, GPU)이 부족한 학생, 연구자, 꿈꾸는 자.

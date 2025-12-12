@@ -1,3 +1,4 @@
+
 // ZIA SYSTEM TYPES
 import { MemoryType } from './02_CORTEX/memory_orchestrator';
 
@@ -11,6 +12,21 @@ export interface TaskLog {
     message: string;
     timestamp: number;
     details?: string;
+}
+
+export interface BranchingOption {
+    id: string;
+    label: string;
+    description?: string;
+    next_action: string; // The query or action to perform if selected
+    icon?: string;
+}
+
+// [NEW] User Sovereignty Settings for Interpreter Protocol
+export interface InterpreterConfig {
+    ambiguityThreshold: number; // 0.1 (Passive) ~ 0.9 (Strict)
+    uiMode: 'INLINE' | 'CANVAS';
+    showThoughtProcess: boolean; // Transparency toggle
 }
 
 export interface Message {
@@ -34,7 +50,9 @@ export interface Message {
     harvested?: boolean;
     swarmProcessed?: boolean;
     swarmResult?: boolean;
-    appliedStrategy?: ReasoningMode; // [New] To track which strategy AUTO picked
+    appliedStrategy?: ReasoningMode; 
+    branchingOptions?: BranchingOption[]; 
+    interpretedIntent?: string; // [NEW] For Transparency
   };
 }
 
@@ -55,5 +73,6 @@ export interface SystemDNA {
   themeColor: 'cyan' | 'emerald' | 'rose' | 'violet' | 'amber';
   aiPersona: 'ANALYTICAL' | 'EMPATHETIC' | 'CREATIVE';
   generation: number;
-  reasoningMode: ReasoningMode; // [New]
+  reasoningMode: ReasoningMode; 
+  interpreterConfig: InterpreterConfig; // [NEW] Added config
 }

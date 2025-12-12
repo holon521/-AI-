@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface HeaderProps {
@@ -21,15 +20,22 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center space-x-3">
                 <span className="material-symbols-outlined text-cyan-500">fingerprint</span>
                 <span className="text-sm font-bold tracking-widest text-slate-200">ZIA: HOLON WORLD</span>
-                <span className="text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">Core v2.5</span>
+                <span className="text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 font-mono">OPAL v2.5</span>
             </div>
             
             {/* Center: System Status / Notifications could go here */}
 
             <div className="flex items-center space-x-2">
                 {isSwarmActive && (
-                    <div className="flex items-center text-green-400 text-[10px] font-bold animate-pulse mr-4 px-2 py-1 bg-green-900/10 rounded border border-green-900/30">
-                        <span className="material-symbols-outlined text-sm mr-1">hub</span>SWARM ACTIVE
+                    <div className="flex items-center space-x-3 mr-4">
+                        <div className="flex items-center text-cyan-400 text-[9px] font-bold bg-cyan-900/10 px-2 py-1 rounded border border-cyan-900/30" title="Antigravity Mode Active">
+                            <span className="material-symbols-outlined text-sm mr-1 animate-bounce">vertical_align_top</span>
+                            ANTIGRAVITY
+                        </div>
+                        <div className="flex items-center text-green-400 text-[9px] font-bold bg-green-900/10 px-2 py-1 rounded border border-green-900/30">
+                            <span className="material-symbols-outlined text-sm mr-1">all_inclusive</span>
+                            OPAL ONLINE
+                        </div>
                     </div>
                 )}
                 

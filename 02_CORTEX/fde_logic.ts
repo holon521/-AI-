@@ -1,7 +1,7 @@
 
-// ZIA FDE ENGINE & MATH UTILS v3.2 (ZERO-ALLOCATION OPTIMIZED)
+// ZIA FDE ENGINE & MATH UTILS v3.3 (HAMMING LOGIC)
 // [LOCATION]: 02_CORTEX/fde_logic.ts
-// [v3.2] Applied '1 Billion Row Challenge' optimization: No intermediate string creation (GC-free).
+// [v3.3] Added computeHammingSimilarity for SimHash comparison.
 
 // 1. PSEUDO-RANDOM GENERATOR (Deterministic, Inlined for speed)
 class Mulberry32 {
@@ -17,51 +17,40 @@ class Mulberry32 {
 }
 
 // 2. MATRIX PROJECTION (MuVERA-Style with Zero-Allocation)
-// Optimization: Iterate through string directly without .match() or .split() to avoid creating garbage objects.
 export function computeSimHashSignature(text: string): string {
     const dimension = 64; 
-    const projection = new Float32Array(dimension).fill(0); // The only allocation (reused ideally)
+    const projection = new Float32Array(dimension).fill(0); 
     const len = text.length;
     
     let i = 0;
     while (i < len) {
         let code = text.charCodeAt(i);
         
-        // Skip non-word characters (Simple whitespace/symbol check)
-        // A-Z (65-90), a-z (97-122), 0-9 (48-57), Hangul (44032-55203)
+        // Skip non-word characters
         if (
             (code >= 65 && code <= 90) || 
             (code >= 97 && code <= 122) || 
             (code >= 48 && code <= 57) || 
             (code >= 44032 && code <= 55203)
         ) {
-            // Found start of word
-            let h = 0x811c9dc5; // FNV-1a Offset Basis
-            
-            // Inner loop: Hash the word on the fly (No substring creation)
+            let h = 0x811c9dc5; 
             while (i < len) {
                 code = text.charCodeAt(i);
-                // Check if still a word char
                 if (
                     !((code >= 65 && code <= 90) || 
                     (code >= 97 && code <= 122) || 
                     (code >= 48 && code <= 57) || 
                     (code >= 44032 && code <= 55203))
                 ) {
-                    break; // Word ended
+                    break;
                 }
-                
-                // FNV-1a Hash Step
                 h ^= code;
                 h = Math.imul(h, 0x01000193);
                 i++;
             }
             
-            // Apply projection using the computed hash
-            // (We re-seed RNG with the token hash to simulate fixed vector for that token)
-            let t = h >>> 0; // Seed
+            let t = h >>> 0; 
             for (let j = 0; j < dimension; j++) {
-                 // Inline Mulberry32 logic for raw speed inside hot loop
                  t += 0x6D2B79F5;
                  let z = Math.imul(t ^ (t >>> 15), t | 1);
                  z ^= z + Math.imul(z ^ (z >>> 7), z | 61);
@@ -74,7 +63,6 @@ export function computeSimHashSignature(text: string): string {
         }
     }
 
-    // Convert to Hex Signature
     let signature = "";
     let chunk = 0;
     for (let j = 0; j < dimension; j++) {
@@ -93,9 +81,6 @@ export function calculateLogicDensity(text: string): number {
     const len = text.length;
     if (len === 0) return 0;
     
-    // 1. Calculate Entropy (Approx) via unique char codes
-    // Using a fixed size boolean array for ASCII/Hangul mapping is too big,
-    // so we use a Set but optimize usage.
     const uniqueChars = new Set();
     for(let i=0; i<len; i++) {
         uniqueChars.add(text.charCodeAt(i));
@@ -103,8 +88,6 @@ export function calculateLogicDensity(text: string): number {
     
     const entropy = (uniqueChars.size / len) * Math.log2(len);
     
-    // 2. Keyword Check (Fast Scan)
-    // We assume keywords are short. Standard .includes is highly optimized in V8.
     const keywords = [
         '따라서', '그러므로', '왜냐하면', '결론적으로', '가정하면', 
         'because', 'therefore', 'implies', 'axiom', 'if', 'then', 'else',
@@ -113,8 +96,6 @@ export function calculateLogicDensity(text: string): number {
     
     let logicBoost = 0;
     const lowerText = text.toLowerCase(); 
-    // Note: .toLowerCase() creates a new string, but it's unavoidable for case-insensitive match 
-    // unless we implement a custom byte-level scanner, which is overkill here.
     
     for (const kw of keywords) {
         if (lowerText.includes(kw)) logicBoost += 0.1;
@@ -123,11 +104,10 @@ export function calculateLogicDensity(text: string): number {
     return Math.min(1.0, (entropy / 8) + logicBoost);
 }
 
-// 4. STANDARD VECTOR MATH
+// 4. VECTOR MATH
 export function cosineSimilarity(vecA: number[], vecB: number[]): number {
     if (vecA.length !== vecB.length) return 0;
     let dot = 0, magA = 0, magB = 0;
-    // Loop unrolling or simple iteration is fine for V8
     for (let i = 0; i < vecA.length; i++) {
         dot += vecA[i] * vecB[i];
         magA += vecA[i] * vecA[i];
@@ -142,11 +122,33 @@ export function jaccardSimilarity(arrA: string[], arrB: string[]): number {
     if (arrA.length === 0 || arrB.length === 0) return 0;
     const setA = new Set(arrA);
     let intersection = 0;
-    const setBSize = arrB.length; 
-    // Optimization: iterate smaller array? Set lookup is O(1).
     for(const item of arrB) {
         if (setA.has(item)) intersection++;
     }
-    const union = setA.size + setBSize - intersection;
+    const union = setA.size + arrB.length - intersection;
     return intersection / union;
+}
+
+// 5. HAMMING SIMILARITY (For SimHash Hex Strings)
+export function computeHammingSimilarity(hex1: string, hex2: string): number {
+    if (hex1.length !== hex2.length) return 0;
+    let matchingBits = 0;
+    const totalBits = hex1.length * 4;
+
+    for (let i = 0; i < hex1.length; i++) {
+        const v1 = parseInt(hex1[i], 16);
+        const v2 = parseInt(hex2[i], 16);
+        // XOR gives 1 where bits differ. We want matching bits.
+        // 0xF (1111) is the mask.
+        let diff = v1 ^ v2;
+        // Count bits in diff
+        let diffCount = 0;
+        while(diff > 0) {
+            if ((diff & 1) === 1) diffCount++;
+            diff >>= 1;
+        }
+        matchingBits += (4 - diffCount);
+    }
+    
+    return matchingBits / totalBits;
 }

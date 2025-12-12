@@ -13,6 +13,7 @@ import { SettingsModal } from './components/features/SettingsModal';
 import { ArtifactCanvas } from './components/features/ArtifactCanvas';
 import { BlueprintViewer } from './components/shared/BlueprintViewer';
 import { RemoteDesktop } from './components/shared/RemoteDesktop';
+import { LandingView } from './components/views/LandingView';
 
 const App = () => {
   // Use the OS Kernel Hook
@@ -22,10 +23,7 @@ const App = () => {
   const [showSpec, setShowSpec] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [googleClientId, setGoogleClientId] = useState('');
-
-  if (os.showRemoteDesktop && os.remoteUrl) {
-      return <RemoteDesktop url={os.remoteUrl} onClose={() => os.setShowRemoteDesktop(false)} />;
-  }
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // --- DYNAMIC THEMING ENGINE ---
   const getThemeColors = () => {
@@ -45,8 +43,16 @@ const App = () => {
       return base;
   };
 
+  if (os.showRemoteDesktop && os.remoteUrl) {
+      return <RemoteDesktop url={os.remoteUrl} onClose={() => os.setShowRemoteDesktop(false)} />;
+  }
+
+  if (!isInitialized) {
+      return <LandingView onComplete={() => setIsInitialized(true)} />;
+  }
+
   return (
-    <div className={`${getLayoutClasses()} ${getThemeColors()}`}>
+    <div className={`${getLayoutClasses()} ${getThemeColors()} animate-fade-in`}>
       <Header 
         isSwarmActive={os.isSwarmActive} 
         onShowSettings={() => setShowSettings(true)} 
@@ -71,6 +77,8 @@ const App = () => {
         reasoningMode={os.systemDNA.reasoningMode}
         onSetReasoningMode={(mode) => os.setSystemDNA(prev => ({ ...prev, reasoningMode: mode }))}
         llmProvider={os.llmProvider}
+        // [NEW] Real-time Agent Status
+        activeTask={os.taskLog.length > 0 ? os.taskLog[os.taskLog.length - 1] : undefined}
       />
       
       {os.systemDNA.layoutMode !== 'FOCUS' && os.systemDNA.layoutMode !== 'WRITER' && (

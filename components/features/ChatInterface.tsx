@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import { Message, ReasoningMode, LLMProvider } from '../../types';
+import { Message, ReasoningMode, LLMProvider, TaskLog, BranchingOption } from '../../types';
 
 interface ChatInterfaceProps {
     messages: Message[];
@@ -14,11 +14,14 @@ interface ChatInterfaceProps {
     reasoningMode: ReasoningMode;
     onSetReasoningMode: (mode: ReasoningMode) => void;
     llmProvider: LLMProvider;
+    // [NEW] Real-time Task Status
+    activeTask?: TaskLog;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
     messages, isThinking, onSendMessage, isMuted, onToggleMute,
-    activeModel, onSetModel, reasoningMode, onSetReasoningMode, llmProvider
+    activeModel, onSetModel, reasoningMode, onSetReasoningMode, llmProvider,
+    activeTask
 }) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -28,6 +31,24 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     // UI Toggles
     const [showModelMenu, setShowModelMenu] = useState(false);
     const [showReasoningMenu, setShowReasoningMenu] = useState(false);
+    
+    // Cycling Axioms
+    const [axiomIndex, setAxiomIndex] = useState(0);
+    const AXIOMS = [
+        "Poverty is structural dependency.",
+        "Truth is not a democracy.",
+        "The best part is no part.",
+        "Intelligence is the ability to connect."
+    ];
+
+    useEffect(() => {
+        if (messages.length === 0) {
+            const timer = setInterval(() => {
+                setAxiomIndex(prev => (prev + 1) % AXIOMS.length);
+            }, 5000);
+            return () => clearInterval(timer);
+        }
+    }, [messages.length]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -61,12 +82,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         reader.readAsDataURL(file);
     };
 
+    // Handle Branch Selection
+    const handleBranchSelect = (option: BranchingOption) => {
+        onSendMessage(option.next_action);
+    };
+
     // Constants for Selectors
     const MODEL_OPTIONS = llmProvider === 'GOOGLE' 
         ? [
+            { id: "gemini-3-pro-preview", label: "Gemini 3 Pro Preview", desc: "ZIA Native Core" },
             { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", desc: "Fast & Efficient" },
-            { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro", desc: "Complex Reasoning" },
-            { id: "gemini-exp-1206", label: "Gemini Exp 1206", desc: "Experimental" }
+            { id: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash Exp", desc: "Legacy Stable" },
+            { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro", desc: "Complex Reasoning" }
           ]
         : [
             { id: "gpt-4o", label: "GPT-4o", desc: "Omni Model" },
@@ -124,19 +151,51 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
                 {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full opacity-50">
-                        <span className="material-symbols-outlined text-6xl mb-4 text-slate-700">psychology</span>
-                        <p className="text-sm font-light text-slate-500">"Poverty is structural dependency."</p>
+                        <span className="material-symbols-outlined text-6xl mb-4 text-slate-700 animate-pulse">psychology</span>
+                        <div className="h-6 overflow-hidden relative text-center">
+                            <p key={axiomIndex} className="text-sm font-light text-slate-500 animate-fade-in transition-all duration-500">
+                                "{AXIOMS[axiomIndex]}"
+                            </p>
+                        </div>
                         <div className="flex space-x-2 mt-4">
                             <span className="text-[10px] bg-slate-900 border border-slate-800 px-2 py-1 rounded text-slate-500 font-mono">{activeModel}</span>
                             <span className="text-[10px] bg-slate-900 border border-slate-800 px-2 py-1 rounded text-slate-500 font-mono">{reasoningMode}</span>
                         </div>
                     </div>
                 )}
-                {messages.map(msg => (
+                {messages.map((msg, idx) => (
                     <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} animate-fade-in`}>
                         <div className={`max-w-2xl p-4 rounded-2xl shadow-sm ${msg.role === 'user' ? 'bg-cyan-900/10 border border-cyan-800/30 text-cyan-100' : 'bg-slate-900 border border-slate-800 text-slate-300'}`}>
+                            
+                            {/* [TRANSPARENCY] Interpreted Intent Display */}
+                            {msg.metadata?.interpretedIntent && (
+                                <div className="mb-2 pb-2 border-b border-slate-700/50 flex items-center space-x-2 opacity-70">
+                                    <span className="material-symbols-outlined text-xs text-amber-500">translate</span>
+                                    <span className="text-[10px] text-amber-400 font-mono">"{msg.metadata.interpretedIntent}"</span>
+                                </div>
+                            )}
+
                             <div className="whitespace-pre-wrap text-sm leading-relaxed">{msg.text}</div>
                             
+                            {/* Branching Options (One-Click Decision Tree - INLINE MODE) */}
+                            {msg.role === 'model' && msg.metadata?.branchingOptions && (
+                                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {msg.metadata.branchingOptions.map((opt) => (
+                                        <button 
+                                            key={opt.id}
+                                            onClick={() => handleBranchSelect(opt)}
+                                            className="text-left bg-slate-950 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500 p-3 rounded-lg transition-all group flex flex-col shadow-lg"
+                                        >
+                                            <div className="flex items-center text-xs font-bold text-cyan-400 group-hover:text-cyan-300 mb-1">
+                                                {opt.icon && <span className="material-symbols-outlined text-sm mr-2">{opt.icon}</span>}
+                                                {opt.label}
+                                            </div>
+                                            {opt.description && <div className="text-[10px] text-slate-500 group-hover:text-slate-400">{opt.description}</div>}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
                             {/* Sources Display */}
                             {msg.role === 'model' && msg.metadata?.groundingMetadata && renderSources(msg.metadata.groundingMetadata)}
                         </div>
@@ -159,13 +218,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                             {currentReasoning.id === 'DEBATE' ? 'sync' : 
                              currentReasoning.id === 'RESEARCH' ? 'public' : 'hourglass_top'}
                         </span>
-                        <span className="font-mono">
-                            {reasoningMode === 'AUTO' ? 'Router Analyzing Strategy...' :
-                             reasoningMode === 'DEBATE' ? 'Simulating Persona Conflict...' : 
-                             reasoningMode === 'PRECISE' ? 'Verifying Logic Topology...' : 
-                             reasoningMode === 'RESEARCH' ? 'Browsing Global Network...' :
-                             'Generating Response...'}
-                        </span>
+                        <div className="flex flex-col">
+                            <span className="font-mono font-bold text-slate-400">
+                                {activeTask?.status === 'processing' 
+                                    ? activeTask.stage.toUpperCase() 
+                                    : 'PROCESSING'}
+                            </span>
+                            <span className="text-[10px] text-slate-600">
+                                {activeTask?.status === 'processing' ? activeTask.message : "Orchestrating..."}
+                            </span>
+                        </div>
                     </div>
                 )}
                 <div ref={messagesEndRef} />
@@ -276,10 +338,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     <div className="relative flex-1">
                         <input
                             ref={inputRef}
-                            className="w-full bg-slate-900 text-slate-200 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-1 focus:ring-cyan-500/50 border border-slate-800 font-mono shadow-inner"
+                            className={`w-full bg-slate-900 text-slate-200 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-1 focus:ring-cyan-500/50 border ${isThinking ? 'border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.1)]' : 'border-slate-800'} font-mono shadow-inner transition-all`}
                             placeholder={`Direct ${activeModel} via ${reasoningMode} Protocol...`}
                             onKeyDown={handleKeyDown}
                         />
+                        {/* Neural Spark Input Indicator */}
+                        {isThinking && (
+                            <div className="absolute bottom-0 left-4 right-12 h-[2px] bg-gradient-to-r from-cyan-500 via-purple-500 to-cyan-500 animate-[shimmer_2s_infinite]"></div>
+                        )}
                         <button 
                             onClick={() => { 
                                 if(inputRef.current?.value || attachment) { 

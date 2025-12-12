@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { driveBridge } from '../../04_NERVES/drive_bridge'; 
 import { getNotebookJSON } from '../../04_NERVES/zia_worker_script'; 
 import { orchestrator } from '../../02_CORTEX/memory_orchestrator';
-import { LLMProvider, ReasoningMode } from '../../types';
+import { LLMProvider, ReasoningMode, InterpreterConfig } from '../../types';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -28,15 +28,19 @@ interface SettingsModalProps {
     reasoningMode?: ReasoningMode;
     setReasoningMode?: (mode: ReasoningMode) => void;
     onEnableDemoMode?: () => void;
+    // [NEW] Interpreter Config
+    interpreterConfig?: InterpreterConfig;
+    setInterpreterConfig?: (config: InterpreterConfig) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
     isOpen, onClose, clientId, setClientId, apiKey, setApiKey, isDriveConnected, 
     onSimulateConnection, onDisconnect, onGetScript, onCloudBackup, onCloudRestore, onTestBrain,
-    activeModel = 'gemini-2.0-flash-exp', setActiveModel,
+    activeModel = 'gemini-3-pro-preview', setActiveModel,
     llmProvider = 'GOOGLE', setLlmProvider, baseUrl = '', setBaseUrl,
     reasoningMode = 'FAST', setReasoningMode,
-    onEnableDemoMode
+    onEnableDemoMode,
+    interpreterConfig, setInterpreterConfig
 }) => {
     const [manualToken, setManualToken] = useState('');
     const [isConnecting, setIsConnecting] = useState(false);
@@ -64,27 +68,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         
         if (isOpen) {
             refreshMemoryStats();
-            // If Drive is already connected, check Swarm health immediately
             if (isDriveConnected) checkSwarmHealth();
         }
     }, [isOpen, isDriveConnected]);
 
-    // [SMART RECONNECT LOGIC]
     const checkSwarmHealth = async () => {
         try {
             const files = await driveBridge.searchFiles("name = 'swarm_status.json' and trashed=false");
             if (files.length > 0) {
                 const status = await driveBridge.getFileContent(files[0].id);
-                // Check modified time or internal heartbeat if available. 
-                // Currently trusting the file existence + 'ONLINE' status.
-                // In a real scenario, we compare file modifiedTime with Date.now().
                 const lastMod = new Date(files[0].modifiedTime).getTime();
                 const now = Date.now();
-                const diff = (now - lastMod) / 1000; // seconds
+                const diff = (now - lastMod) / 1000; 
 
-                if (diff < 120) { // If heartbeat within last 2 mins
+                if (diff < 120) { 
                     setExistingSwarmStatus({ alive: true, lastBeat: diff, version: status.version });
-                    // If file exists, we can also construct the Colab link if we find the notebook
                     findExistingNotebook();
                 } else {
                     setExistingSwarmStatus({ alive: false, lastBeat: diff });
@@ -124,7 +122,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         try {
             await driveBridge.setManualToken(manualToken, () => {
                 onSimulateConnection();
-                // Check Swarm immediately after connection
                 setTimeout(checkSwarmHealth, 1000);
             });
         } catch (e: any) {
@@ -169,7 +166,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             const notebook = getNotebookJSON();
             const fileName = `ZIA_COMPUTE_NODE.ipynb`;
             const existingFiles = await driveBridge.searchFiles(`name = '${fileName}' and trashed = false`);
-            // Delete old notebook to avoid clutter
             if (existingFiles.length > 0) {
                 for (const file of existingFiles) await driveBridge.deleteFile(file.id);
             }
@@ -177,7 +173,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             if (res && res.id) {
                 setColabLink(`https://colab.research.google.com/drive/${res.id}`);
                 setDeployState('success');
-                // Force status update
                 setExistingSwarmStatus(null); 
             } else {
                 throw new Error("No file ID returned");
@@ -219,9 +214,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const MODEL_OPTIONS = llmProvider === 'GOOGLE' 
         ? [
-            { id: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash Exp", badge: "New" },
-            { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", badge: "Stable" },
-            { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro", badge: "Reasoning" }
+            { id: "gemini-3-pro-preview", label: "Gemini 3 Pro Preview", badge: "Native" },
+            { id: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash Exp", badge: "Legacy" },
+            { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", badge: "Fast" }
           ]
         : [
             { id: "gpt-4o", label: "GPT-4o (Omni)", badge: "OpenAI" },
@@ -305,30 +300,55 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                     </div>
 
-                    {/* 2. MEMORY INSPECTOR (LocalStorage) */}
-                    <div className="p-3 bg-slate-950 rounded border border-slate-800 space-y-2">
-                        <div className="flex justify-between items-center">
-                            <h4 className="text-xs font-bold text-emerald-400">MEMORY INSPECTOR (LocalStorage)</h4>
-                            <button onClick={refreshMemoryStats} className="text-[9px] bg-slate-800 px-2 py-1 rounded text-slate-400 hover:text-white">REFRESH</button>
-                        </div>
-                        {memDebugData && (
-                            <div className="text-[9px] space-y-2">
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="bg-slate-900 p-2 rounded border border-slate-800">
-                                        <div className="text-slate-500">STORAGE USED</div>
-                                        <div className="text-lg font-mono text-slate-200">{memDebugData.sizeKB} KB</div>
+                    {/* [NEW] INTERPRETER CONFIG */}
+                    {interpreterConfig && setInterpreterConfig && (
+                        <div className="p-3 bg-slate-950 rounded border border-slate-800 space-y-3">
+                            <h4 className="text-xs font-bold text-amber-400 flex items-center">
+                                <span className="material-symbols-outlined text-sm mr-1">translate</span>
+                                INTERPRETER PROTOCOL
+                            </h4>
+                            
+                            <div className="space-y-2">
+                                {/* Ambiguity Slider */}
+                                <div>
+                                    <div className="flex justify-between text-[9px] text-slate-500 mb-1">
+                                        <span>ASK FREQUENCY</span>
+                                        <span>{interpreterConfig.ambiguityThreshold < 0.3 ? 'PASSIVE' : interpreterConfig.ambiguityThreshold > 0.7 ? 'STRICT' : 'BALANCED'}</span>
                                     </div>
-                                    <div className="bg-slate-900 p-2 rounded border border-slate-800">
-                                        <div className="text-slate-500">ENGRAM COUNT</div>
-                                        <div className="text-lg font-mono text-slate-200">{memDebugData.nodeCount}</div>
+                                    <input 
+                                        type="range" min="0.1" max="0.9" step="0.1"
+                                        value={interpreterConfig.ambiguityThreshold}
+                                        onChange={(e) => setInterpreterConfig({...interpreterConfig, ambiguityThreshold: parseFloat(e.target.value)})}
+                                        className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                                    />
+                                    <div className="flex justify-between text-[8px] text-slate-600 mt-1">
+                                        <span>Guess Intent</span>
+                                        <span>Verify Intent</span>
                                     </div>
                                 </div>
-                                <button onClick={handleClearMemory} className="w-full bg-red-900/10 border border-red-800/30 text-red-500 py-1.5 rounded hover:bg-red-900/30">
-                                    WIPE ALL MEMORY
-                                </button>
+
+                                {/* UI Mode */}
+                                <div className="flex items-center justify-between border-t border-slate-900 pt-2">
+                                    <label className="text-[9px] text-slate-400 font-bold">VISUAL STYLE</label>
+                                    <div className="flex space-x-1 bg-slate-900 p-0.5 rounded border border-slate-800">
+                                        <button onClick={() => setInterpreterConfig({...interpreterConfig, uiMode: 'INLINE'})} className={`px-2 py-1 text-[9px] rounded ${interpreterConfig.uiMode === 'INLINE' ? 'bg-amber-900/50 text-amber-400' : 'text-slate-500'}`}>INLINE</button>
+                                        <button onClick={() => setInterpreterConfig({...interpreterConfig, uiMode: 'CANVAS'})} className={`px-2 py-1 text-[9px] rounded ${interpreterConfig.uiMode === 'CANVAS' ? 'bg-amber-900/50 text-amber-400' : 'text-slate-500'}`}>CANVAS</button>
+                                    </div>
+                                </div>
+
+                                {/* Transparency Toggle */}
+                                <div className="flex items-center justify-between border-t border-slate-900 pt-2">
+                                    <label className="text-[9px] text-slate-400 font-bold">SHOW THOUGHT PROCESS</label>
+                                    <button 
+                                        onClick={() => setInterpreterConfig({...interpreterConfig, showThoughtProcess: !interpreterConfig.showThoughtProcess})}
+                                        className={`w-8 h-4 rounded-full p-0.5 transition-colors ${interpreterConfig.showThoughtProcess ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                                    >
+                                        <div className={`w-3 h-3 bg-white rounded-full shadow transition-transform ${interpreterConfig.showThoughtProcess ? 'translate-x-4' : ''}`}></div>
+                                    </button>
+                                </div>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
 
                     {/* 3. BRIDGE: Drive Auth */}
                     <div className="flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-800">
@@ -418,6 +438,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <button onClick={onDisconnect} className="w-full bg-red-900/10 border border-red-800/30 text-red-400 py-2 rounded text-xs font-bold">DISCONNECT</button>
                         </div>
                     )}
+                    
+                     {/* Memory Inspector */}
+                     <div className="p-3 bg-slate-950 rounded border border-slate-800 space-y-2">
+                        <div className="flex justify-between items-center">
+                            <h4 className="text-xs font-bold text-emerald-400">MEMORY INSPECTOR</h4>
+                            <button onClick={refreshMemoryStats} className="text-[9px] bg-slate-800 px-2 py-1 rounded text-slate-400 hover:text-white">REFRESH</button>
+                        </div>
+                        {memDebugData && (
+                            <div className="text-[9px] space-y-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="bg-slate-900 p-2 rounded border border-slate-800">
+                                        <div className="text-slate-500">STORAGE USED</div>
+                                        <div className="text-lg font-mono text-slate-200">{memDebugData.sizeKB} KB</div>
+                                    </div>
+                                    <div className="bg-slate-900 p-2 rounded border border-slate-800">
+                                        <div className="text-slate-500">ENGRAM COUNT</div>
+                                        <div className="text-lg font-mono text-slate-200">{memDebugData.nodeCount}</div>
+                                    </div>
+                                </div>
+                                <button onClick={handleClearMemory} className="w-full bg-red-900/10 border border-red-800/30 text-red-500 py-1.5 rounded hover:bg-red-900/30">
+                                    WIPE ALL MEMORY
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                 </div>
             </div>
         </div>

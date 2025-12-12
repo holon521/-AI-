@@ -1,7 +1,7 @@
 
-// ZIA GOOGLE DRIVE BRIDGE v2.1 (FILE SYSTEM DRIVER)
+// ZIA GOOGLE DRIVE BRIDGE v3.0 (ACTIVE NERVOUS SYSTEM)
 // [LOCATION]: 03_NERVES/drive_bridge.ts
-// [v2.1] Added 401 Token Expiry Handling & getStatus()
+// [v3.0] Implements Active Polling Pulse & Event Emitters. Replaces passive API usage.
 
 export interface DriveAuthStatus {
     isAuthenticated: boolean;
@@ -9,12 +9,108 @@ export interface DriveAuthStatus {
     userEmail: string | null;
 }
 
+export type BridgeEventType = 'STATUS' | 'RESULT' | 'ERROR';
+export interface BridgeEvent {
+    type: BridgeEventType;
+    payload: any;
+}
+type BridgeListener = (event: BridgeEvent) => void;
+
 export class DriveBridge {
     private tokenClient: any = null;
     private accessToken: string | null = null;
     private folderId: string | null = null;
+    
+    // [ACTIVE PULSE]
+    private listeners: BridgeListener[] = [];
+    private pulseInterval: any = null;
+    private isPulsing = false;
+    private lastHeartbeat = 0;
 
     constructor() {}
+
+    // --- NERVOUS SYSTEM (EVENTS) ---
+    public subscribe(listener: BridgeListener): () => void {
+        this.listeners.push(listener);
+        return () => { this.listeners = this.listeners.filter(l => l !== listener); };
+    }
+
+    private emit(type: BridgeEventType, payload: any) {
+        this.listeners.forEach(l => l({ type, payload }));
+    }
+
+    // --- PULSE LOOP (THE HEART) ---
+    public startPulse(intervalMs = 2000) {
+        if (this.isPulsing) return;
+        this.isPulsing = true;
+        console.log("[DriveBridge] 💓 Pulse Started");
+        
+        this.pulseInterval = setInterval(async () => {
+            if (!this.accessToken) return;
+            try {
+                // 1. Check System Health
+                await this.checkSwarmStatus();
+                // 2. Collect Reflexes (Results)
+                await this.collectResults();
+            } catch (e: any) {
+                // Silent catch to prevent loop crash, but maybe emit critical errors
+                if (e.message.includes('401')) {
+                    this.emit('ERROR', { code: 401, message: "Token Expired" });
+                    this.stopPulse();
+                }
+            }
+        }, intervalMs);
+    }
+
+    public stopPulse() {
+        this.isPulsing = false;
+        if (this.pulseInterval) clearInterval(this.pulseInterval);
+        console.log("[DriveBridge] 🛑 Pulse Stopped");
+    }
+
+    private async checkSwarmStatus() {
+        if (!this.folderId) return; // Wait for initialization
+        const files = await this.searchFiles("name = 'swarm_status.json' and trashed=false");
+        
+        if (files.length > 0) {
+            const statusData = await this.getFileContent(files[0].id);
+            this.emit('STATUS', {
+                active: true,
+                vectorCount: statusData.memory_count || 0,
+                lastBeat: Date.now(),
+                version: statusData.version
+            });
+            this.lastHeartbeat = Date.now();
+        } else {
+            // Check timeout locally
+            if (Date.now() - this.lastHeartbeat > 8000) {
+                this.emit('STATUS', { active: false, message: "Offline" });
+            }
+        }
+    }
+
+    private async collectResults() {
+        // Find all result files
+        const files = await this.searchFiles("name contains 'res_' and trashed=false");
+        
+        for (const file of files) {
+            try {
+                // Read Content
+                const content = await this.getFileContent(file.id);
+                // Consume (Delete) immediately to prevent re-processing
+                await this.deleteFile(file.id);
+                // Fire Synapse
+                this.emit('RESULT', {
+                    filename: file.name,
+                    content: content
+                });
+            } catch (e) {
+                console.warn(`[DriveBridge] Failed to process synapse: ${file.name}`, e);
+            }
+        }
+    }
+
+    // --- CORE API METHODS ---
 
     public init(clientId: string, callback: (response: any) => void) {
         if (!clientId) return;
@@ -23,7 +119,6 @@ export class DriveBridge {
             // @ts-ignore
             this.tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: clientId,
-                // Requesting FULL Drive access to act as an OS File System
                 scope: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/cloud-platform', 
                 callback: (tokenResponse: any) => {
                     this.accessToken = tokenResponse.access_token;
@@ -49,8 +144,6 @@ export class DriveBridge {
 
     public async setManualToken(token: string, callback: () => void) {
         if (!token) throw new Error("Token is empty.");
-        if (token.startsWith('AIza')) throw new Error("This looks like an API Key. Please use the OAuth Access Token.");
-
         let cleanToken = token.trim();
         if (cleanToken.toLowerCase().startsWith('bearer ')) {
             cleanToken = cleanToken.slice(7).trim();
@@ -60,8 +153,7 @@ export class DriveBridge {
             await this.ensureSystemFolder();
             callback();
         } catch (e: any) {
-            this.accessToken = null; // Clear invalid token immediately
-            console.error("[DriveBridge] Verification Failed:", e);
+            this.accessToken = null;
             throw e;
         }
     }
@@ -81,18 +173,13 @@ export class DriveBridge {
         } catch (e: any) { throw e; }
     }
 
-    // --- FILE SYSTEM OPERATIONS (OS LEVEL) ---
-
-    // [NEW] Global Search (Not restricted to system folder)
     public async globalSearch(query: string, limit: number = 10) {
         if (!this.accessToken) return [];
-        // Search in name or fullText, exclude trashed
         const q = `(name contains '${query}' or fullText contains '${query}') and trashed=false`;
         const res = await this.fetchDriveAPI(`files?q=${encodeURIComponent(q)}&pageSize=${limit}&fields=files(id,name,mimeType,modifiedTime,size)`);
         return res.files || [];
     }
 
-    // [NEW] Read Any Text File
     public async readTextFile(fileId: string): Promise<string> {
         if (!this.accessToken) throw new Error("Not Connected");
         const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
@@ -105,7 +192,6 @@ export class DriveBridge {
         return await res.text();
     }
 
-    // System Folder Operations (Swarm/Memory)
     public async saveFile(fileName: string, content: object) {
         if (!this.accessToken) throw new Error("Not Connected");
         if (!this.folderId) await this.ensureSystemFolder();
@@ -121,7 +207,10 @@ export class DriveBridge {
             body: form
         });
         if (!res.ok) {
-            if (res.status === 401) this.accessToken = null;
+            if (res.status === 401) {
+                this.accessToken = null;
+                this.emit('ERROR', { code: 401 });
+            }
             throw new Error(`Save Failed (${res.status})`);
         }
         return await res.json();
@@ -167,9 +256,10 @@ export class DriveBridge {
             let msg = `Error ${res.status}`;
             if (res.status === 401) {
                 this.accessToken = null;
-                msg = "Token Expired (401). Please refresh in Settings.";
+                this.emit('ERROR', { code: 401 });
+                msg = "Token Expired";
             }
-            if (res.status === 403) msg = "Insufficient Scope (403). Need 'drive' scope.";
+            if (res.status === 403) msg = "Insufficient Scope";
             throw new Error(msg);
         }
         return await res.json();

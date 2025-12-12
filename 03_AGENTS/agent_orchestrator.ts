@@ -1,12 +1,13 @@
 
-// ZIA AGENT ORCHESTRATOR v2.2 (SWARM SYNC ENABLED)
+// ZIA AGENT ORCHESTRATOR v3.2 (CONFIGURABLE INTERPRETER)
 // [LOCATION]: 03_AGENTS/agent_orchestrator.ts
-// [v2.2] AUTO-SYNC: World Knowledge is immediately dispatched to Colab/ChromaDB via Drive Bridge.
+// [v3.2] Added support for 'interpreterConfig' to dynamically adjust router strictness.
 
 import { skillRegistry } from './skill_registry';
 import { orchestrator } from '../02_CORTEX/memory_orchestrator';
-import { driveBridge } from '../04_NERVES/drive_bridge'; // Direct access to Bridge
-import { ReasoningMode, TaskLog } from '../types';
+import { calculateLogicDensity } from '../02_CORTEX/fde_logic'; 
+import { driveBridge } from '../04_NERVES/drive_bridge'; 
+import { ReasoningMode, TaskLog, BranchingOption } from '../types';
 import { system_instruction_augmentation } from '../01_SOUL/knowledge_archive';
 import { llmGateway, ExecutionContext } from './llm_gateway';
 import { GoogleGenAI } from "@google/genai"; 
@@ -19,35 +20,49 @@ export interface OrchestrationResult {
     swarmCommand?: { type: string, payload: any }; 
 }
 
+type CognitiveLayer = 'DATA' | 'INFORMATION' | 'KNOWLEDGE' | 'WISDOM';
+
 class AgentOrchestrator {
     
-    private ROUTER_PROMPT = `
+    // Base prompt structure - we will inject config into it
+    private getRouterPrompt(ambiguityThreshold: number) {
+        return `
     You are the KERNEL ROUTER of the ZIA OS.
     Input: User's latest message + Recent Context.
     Output: A JSON object.
+    
+    [INTERPRETER PROTOCOL SETTINGS]
+    - Ambiguity Threshold: ${ambiguityThreshold} (0.0=Guess Everything, 1.0=Ask Everything).
+    - If the user's intent ambiguity is ABOVE ${ambiguityThreshold}, you MUST set intent to "CLARIFICATION".
+    - "I'm hungry" -> Ambiguity ~0.6 (Food? Knowledge? Power?) -> ASK if threshold < 0.6.
     
     [AVAILABLE TOOLS]
     - web_search: Use this for ANY query requiring real-time info, news, facts, or external knowledge.
     - calculate_expression: For math.
     - search_memory: For past conversations.
     - req_python_exec: For complex code/data analysis.
-    - trigger_n8n_workflow: For automation pipelines or connecting to external APIs via n8n.
+    - trigger_n8n_workflow: For automation pipelines.
     
     [MEMORY CLASSIFICATION RULE]
-    - "WORLD_KNOWLEDGE": If the user provides specific facts, axioms, definitions, codes, or technical knowledge.
-    - "USER_CONTEXT": Personal stories, commands, greetings, or ephemeral chat.
+    - "WORLD_KNOWLEDGE": Facts, axioms, definitions, codes.
+    - "USER_CONTEXT": Personal stories, commands, greetings.
     
     [RESPONSE FORMAT]
     Return a JSON object.
     Schema: 
     { 
-        "intent": "CASUAL_CHAT" | "TOOL_USE" | "IMAGE_ANALYSIS" | "MEMORY_SEARCH", 
+        "intent": "CASUAL_CHAT" | "TOOL_USE" | "IMAGE_ANALYSIS" | "MEMORY_SEARCH" | "CLARIFICATION", 
         "memory_classification": "USER_CONTEXT" | "WORLD_KNOWLEDGE",
         "tool_call": { "name": "string", "args": object } | null,
         "suggested_strategy": "FAST" | "PRECISE" | "DEBATE" | "RESEARCH",
-        "reply_text": "string (optional immediate reply)"
+        "reply_text": "string (optional immediate reply)",
+        "interpreted_intent_summary": "string (e.g. 'User wants to find a restaurant')", 
+        "branching_options": [ 
+            { "id": "opt_1", "label": "Short Title", "description": "What this does", "next_action": "full query string", "icon": "material_icon_name" } 
+        ]
     }
     `;
+    }
 
     public async processMessage(
         text: string, 
@@ -69,7 +84,7 @@ class AgentOrchestrator {
             onTaskUpdate(t);
         };
 
-        // 1. EMBEDDING (Local Soft-Embedding for FDE)
+        // 1. EMBEDDING
         if (ctx.provider === 'GOOGLE' && text && ctx.apiKey) {
              try {
                 const ai = new GoogleGenAI({ apiKey: ctx.apiKey });
@@ -83,14 +98,17 @@ class AgentOrchestrator {
         // 2. ROUTING & CLASSIFICATION
         let intentData: any = { intent: 'CASUAL_CHAT', suggested_strategy: 'FAST', memory_classification: 'USER_CONTEXT' };
         let effectiveStrategy: ReasoningMode = ctx.dna.reasoningMode;
-        const routerTask = taskHelper('ROUTER', 'Analyzing Intent & Knowledge Type...');
+        const routerTask = taskHelper('ROUTER', 'Analyzing Intent & Ambiguity...');
 
         const historyBlock = ctx.history.map(m => `[${m.role.toUpperCase()}]: ${m.text}`).join('\n');
+        
+        // Use user-defined threshold, default to 0.5
+        const threshold = ctx.dna.interpreterConfig?.ambiguityThreshold ?? 0.5;
 
         if (!attachment) {
             try {
                 const toolDefs = skillRegistry.getToolsDefinition();
-                const prompt = `${this.ROUTER_PROMPT}\n[RECENT CONTEXT]\n${historyBlock}\n[AVAILABLE TOOLS JSON]\n${JSON.stringify(toolDefs)}`;
+                const prompt = `${this.getRouterPrompt(threshold)}\n[RECENT CONTEXT]\n${historyBlock}\n[AVAILABLE TOOLS JSON]\n${JSON.stringify(toolDefs)}`;
                 const routerRes = await llmGateway.call({ ...ctx, history: [] }, prompt, undefined, true);
                 
                 let jsonStr = routerRes.text;
@@ -99,6 +117,21 @@ class AgentOrchestrator {
 
                 if (ctx.dna.reasoningMode === 'AUTO') effectiveStrategy = intentData.suggested_strategy || 'FAST';
                 if (intentData.tool_call?.name === 'web_search') { effectiveStrategy = 'RESEARCH'; intentData.intent = 'TOOL_USE'; }
+                
+                // [AMBIGUITY CHECK]
+                if (intentData.intent === 'CLARIFICATION' && intentData.branching_options) {
+                    taskFinish(routerTask, 'completed', `Ambiguity Detected (Threshold ${threshold}). Branching...`);
+                    return {
+                        responseText: intentData.reply_text || "I need clarification to proceed precisely. Please choose a path:",
+                        tasks,
+                        metadata: {
+                            modelUsed: ctx.model,
+                            appliedStrategy: effectiveStrategy,
+                            branchingOptions: intentData.branching_options,
+                            interpretedIntent: intentData.interpreted_intent_summary
+                        }
+                    };
+                }
                 
                 taskFinish(routerTask, 'completed', `${intentData.intent} / Detected: ${intentData.memory_classification}`);
 
@@ -109,32 +142,10 @@ class AgentOrchestrator {
             taskFinish(routerTask, 'completed', 'Visual Analysis Mode');
         }
 
-        // 2.5 SWARM SYNC (The "Infinite Context" Pipeline)
-        // If World Knowledge is detected, we AUTOMATICALLY dispatch it to the Swarm (Colab).
+        // 2.5 SWARM SYNC (Input Sync)
         if (intentData.memory_classification === 'WORLD_KNOWLEDGE') {
-             const syncTask = taskHelper('FDE_SYNC', 'Swarm Sync: Dispatching to Vector DB...');
-             try {
-                 // 1. Local Store (Cache)
-                 orchestrator.store('WORLD_KNOWLEDGE', text, 'User Consensus');
-                 
-                 // 2. Remote Store (Colab/Chroma)
-                 // We fire this asynchronously. The Colab worker picks it up.
-                 const authStatus = driveBridge.getStatus();
-                 if (authStatus.isAuthenticated) {
-                     const payload = {
-                         id: Date.now().toString(),
-                         content: text,
-                         type: 'WORLD_KNOWLEDGE'
-                     };
-                     // Fire and forget (The worker script handles the embedding)
-                     await driveBridge.saveFile(`req_store_memory_${payload.id}.json`, payload);
-                     taskFinish(syncTask, 'completed', 'Dispatched to Swarm (Colab)');
-                 } else {
-                     taskFinish(syncTask, 'failed', 'Drive Not Connected (Saved Locally Only)');
-                 }
-             } catch (e) {
-                 taskFinish(syncTask, 'failed', 'Sync Error');
-             }
+             const syncTask = taskHelper('FDE_SYNC', 'Input Sync: Dispatching to Vector DB...');
+             this.dispatchToSwarm(text, syncTask, taskFinish);
         }
 
         // 3. SKILL EXECUTION
@@ -162,36 +173,20 @@ class AgentOrchestrator {
             }
         }
 
-        // 4. MEMORY RECALL (Hybrid RAG: Local + Remote Trigger)
+        // 4. MEMORY RECALL
         let contextBlock = "";
-        
-        // If intent is MEMORY_SEARCH or Strategy is DEEP, we query the Swarm
         if (effectiveStrategy === 'RESEARCH' || effectiveStrategy === 'DEBATE' || intentData.intent === 'MEMORY_SEARCH') {
             const memTask = taskHelper('MEMORY', 'Retrieving Context (Local + Swarm)...');
-            
-            // 4.1 Local Retrieval (Fast)
             const localMemories = orchestrator.retrieveRelatedMemories(text, 3);
-            if (localMemories) {
-                contextBlock += `\n[LOCAL MEMORY CACHE]:\n${localMemories}\n`;
-            }
-
-            // 4.2 Swarm Retrieval (Async Trigger)
-            // If connected, we ask Colab to check the Vector DB. 
-            // NOTE: We cannot wait for Colab in this request cycle (too slow).
-            // Instead, we leave a trace. If the user asks again, or if we use a "Thinking Loop", we could wait.
-            // For now, we dispatch the query. The Result Poller in useZiaOS will pick up 'res_query_memory.json' later 
-            // and inject it into the chat stream as a system message.
+            if (localMemories) contextBlock += `\n[LOCAL MEMORY CACHE]:\n${localMemories}\n`;
+            
             const authStatus = driveBridge.getStatus();
             if (authStatus.isAuthenticated) {
                 const queryId = Date.now().toString();
-                driveBridge.saveFile(`req_query_memory_${queryId}.json`, { id: queryId, query: text })
-                    .then(() => console.log("[Agent] Dispatched Swarm Query"))
-                    .catch(e => console.error("[Agent] Swarm Query Failed", e));
-                
-                contextBlock += `\n[SWARM NOTE]: A deep search query has been dispatched to the Vector DB. Results may arrive shortly as a system message.\n`;
+                driveBridge.saveFile(`req_query_memory_${queryId}.json`, { id: queryId, query: text }).catch(e => console.error(e));
+                contextBlock += `\n[SWARM NOTE]: Deep search dispatched to Vector DB. Results pending.\n`;
             }
-
-            taskFinish(memTask, 'completed', 'Context Retrieved (Async Swarm Active)');
+            taskFinish(memTask, 'completed', 'Context Retrieved');
         }
 
         // 5. RESPONSE (Synthesis)
@@ -204,6 +199,7 @@ class AgentOrchestrator {
         [CURRENT CONTEXT]
         Strategy: ${effectiveStrategy}
         Memory Class: ${intentData.memory_classification}
+        Interpreted Intent: ${intentData.interpreted_intent_summary || "Direct Execution"}
         ${contextBlock}
         ${skillResultBlock}
         
@@ -211,24 +207,51 @@ class AgentOrchestrator {
         ${text}
         
         [INSTRUCTION]
-        - If 'web_search' was requested, the system has enabled Grounding.
-        - If WORLD_KNOWLEDGE was detected, CONFIRM that it has been synced to the Swarm (Colab/ChromaDB).
-        - If swarmed memory is pending, tell the user you are checking the Archives.
+        - If 'web_search' was requested, the system has enabled Grounding. Use the provided Grounding Metadata.
+        - If you find new facts via Search, summarize them clearly.
         - To Generate App: Use 'req_render_app'.
         - To Execute Python: Use 'req_python_exec'.
         `;
 
         const useGrounding = effectiveStrategy === 'RESEARCH';
-        
         const response = await llmGateway.call(ctx, metaPrompt, system_instruction_augmentation, false, attachment, useGrounding);
         
+        // --- 6. THE ALCHEMIST ---
+        let harvestStatus = false;
+        if (response.groundingMetadata && response.groundingMetadata.groundingChunks) {
+            const refineTask = taskHelper('FDE_SYNC', 'The Alchemist: Distilling Knowledge...');
+            const chunks = response.groundingMetadata.groundingChunks;
+            const sources = chunks.map((c: any) => c.web?.uri).filter(Boolean).join(', ');
+            const logicScore = calculateLogicDensity(response.text);
+            const sourceCount = chunks.length;
+
+            let layer: CognitiveLayer = 'DATA';
+            if (logicScore < 0.3) layer = 'DATA';
+            else if (logicScore >= 0.3 && logicScore < 0.6) layer = 'INFORMATION';
+            else if (logicScore >= 0.6 && sourceCount >= 2) layer = 'KNOWLEDGE';
+
+            if (layer === 'DATA') {
+                taskFinish(refineTask, 'completed', `Discarded: Classified as ephemeral DATA (Density: ${logicScore.toFixed(2)})`);
+                harvestStatus = false;
+            } 
+            else if (layer === 'INFORMATION') {
+                 orchestrator.store('WORLD_KNOWLEDGE', `[INFO]: ${response.text.substring(0, 500)}...`, 'Web Search');
+                 taskFinish(refineTask, 'completed', `Stored as INFORMATION (Local Only)`);
+                 harvestStatus = true;
+            }
+            else if (layer === 'KNOWLEDGE') {
+                const harvestContent = `[KNOWLEDGE (Logic:${logicScore.toFixed(2)})]: ${response.text.substring(0, 800)}...\n[SOURCES]: ${sources}`;
+                orchestrator.store('WORLD_KNOWLEDGE', harvestContent, 'The Alchemist');
+                this.dispatchToSwarm(harvestContent, refineTask, taskFinish);
+                harvestStatus = true;
+            }
+        }
+
         // Command Parsing
         const jsonCandidates: string[] = [];
         const codeBlockRegex = /```json\s*([\s\S]*?)\s*```/g;
         let match;
-        while ((match = codeBlockRegex.exec(response.text)) !== null) {
-            jsonCandidates.push(match[1]);
-        }
+        while ((match = codeBlockRegex.exec(response.text)) !== null) jsonCandidates.push(match[1]);
         if (jsonCandidates.length === 0) {
              const rawJsonRegex = /(\{\s*"req_[\s\S]*?\})/;
              const rawMatch = response.text.match(rawJsonRegex);
@@ -245,9 +268,7 @@ class AgentOrchestrator {
                 if (cmd.req_drive_list) swarmCommand = { type: 'req_drive_list', payload: cmd.req_drive_list };
                 if (cmd.req_drive_read) swarmCommand = { type: 'req_drive_read', payload: cmd.req_drive_read };
                 if (cmd.req_n8n_proxy) swarmCommand = { type: 'req_n8n_proxy', payload: cmd.req_n8n_proxy };
-            } catch(e) {
-                console.warn("Failed to parse command JSON:", e);
-            }
+            } catch(e) { console.warn("Failed to parse command JSON:", e); }
         }
         
         taskFinish(responseTask, 'completed', 'Response Ready');
@@ -258,11 +279,28 @@ class AgentOrchestrator {
             metadata: { 
                 appliedStrategy: effectiveStrategy, 
                 modelUsed: ctx.model,
-                groundingMetadata: response.groundingMetadata 
+                groundingMetadata: response.groundingMetadata,
+                harvested: harvestStatus,
+                interpretedIntent: intentData.interpreted_intent_summary // Pass for transparency
             },
             visualArtifact,
             swarmCommand
         };
+    }
+
+    private async dispatchToSwarm(content: string, task: TaskLog, taskFinish: any) {
+        try {
+             const authStatus = driveBridge.getStatus();
+             if (authStatus.isAuthenticated) {
+                 const payload = { id: Date.now().toString(), content: content, type: 'WORLD_KNOWLEDGE' };
+                 await driveBridge.saveFile(`req_store_memory_${payload.id}.json`, payload);
+                 taskFinish(task, 'completed', 'Knowledge Crystallized in Swarm');
+             } else {
+                 taskFinish(task, 'failed', 'Drive Not Connected (Local Only)');
+             }
+         } catch (e) {
+             taskFinish(task, 'failed', 'Refinery Sync Error');
+         }
     }
 }
 

@@ -1,28 +1,56 @@
 
-import React from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CognitiveGraph } from '../shared/CognitiveGraph';
-import { MemoryType } from '../../02_CORTEX/memory_orchestrator';
+import { MemoryType, orchestrator, MemoryNode } from '../../02_CORTEX/memory_orchestrator';
 
 interface MemoryModalProps {
     isOpen: boolean;
     onClose: () => void;
     initialFilter: MemoryType | null;
-    activeStage?: string; // [NEW]
+    activeStage?: string; 
 }
 
 export const MemoryModal: React.FC<MemoryModalProps> = ({ isOpen, onClose, initialFilter, activeStage }) => {
-    const [activeFilter, setActiveFilter] = React.useState<MemoryType | null>(initialFilter);
+    const [activeFilter, setActiveFilter] = useState<MemoryType | null>(initialFilter);
+    const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [memoryList, setMemoryList] = useState<MemoryNode[]>([]);
 
-    // Update filter if prop changes when opening
-    React.useEffect(() => {
-        if(isOpen) setActiveFilter(initialFilter);
+    useEffect(() => {
+        if(isOpen) {
+            setActiveFilter(initialFilter);
+            setMemoryList(orchestrator.getAllMemories());
+        } else {
+            setSelectedNodeId(null);
+            setSearchQuery('');
+        }
     }, [isOpen, initialFilter]);
+
+    // Derived List based on filter and search
+    const filteredList = useMemo(() => {
+        let result = memoryList;
+        if (activeFilter) {
+            result = result.filter(n => n.metadata.type === activeFilter);
+        }
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            result = result.filter(n => n.pageContent.toLowerCase().includes(q));
+        }
+        return result;
+    }, [memoryList, activeFilter, searchQuery]);
+
+    const handleNodeSelect = (id: string) => {
+        setSelectedNodeId(id);
+        // Scroll list to this item
+        const el = document.getElementById(`mem-item-${id}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/90 z-[80] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-950 border border-slate-800 rounded-xl w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl overflow-hidden relative">
+        <div className="fixed inset-0 bg-black/95 z-[80] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+            <div className="bg-slate-950 border border-slate-800 rounded-xl w-full max-w-6xl h-[85vh] flex flex-col shadow-2xl overflow-hidden relative">
                 
                 {/* Header */}
                 <div className="h-12 border-b border-slate-800 bg-slate-900 flex items-center justify-between px-4 shrink-0">
@@ -52,17 +80,81 @@ export const MemoryModal: React.FC<MemoryModalProps> = ({ isOpen, onClose, initi
                     </div>
                 </div>
 
-                {/* Graph Container */}
-                <div className="flex-1 relative bg-[#020617]">
-                    <CognitiveGraph filter={activeFilter} activeStage={activeStage} />
+                {/* Split Content */}
+                <div className="flex-1 flex overflow-hidden">
                     
-                    <div className="absolute top-4 left-4 p-3 bg-slate-900/80 rounded border border-slate-800 backdrop-blur pointer-events-none">
-                        <div className="text-[10px] text-slate-400 font-mono mb-1">INTERACTION MODE</div>
-                        <ul className="text-[9px] text-slate-500 space-y-1">
-                            <li>• Hover to stabilize nodes</li>
-                            <li>• Click node to inspect content</li>
-                            <li>• Switch tabs to filter topology</li>
-                        </ul>
+                    {/* Left: Interactive Graph (65%) */}
+                    <div className="flex-[2] relative bg-[#020617] border-r border-slate-900">
+                        <CognitiveGraph 
+                            filter={activeFilter} 
+                            activeStage={activeStage} 
+                            selectedNodeId={selectedNodeId}
+                            onNodeSelect={handleNodeSelect}
+                        />
+                        <div className="absolute bottom-4 left-4 p-2 bg-slate-900/80 rounded border border-slate-800 backdrop-blur pointer-events-none text-[9px] text-slate-500">
+                            VISUALIZER MODE
+                        </div>
+                    </div>
+
+                    {/* Right: Chronological List (35%) */}
+                    <div className="flex-1 bg-slate-950 flex flex-col min-w-[300px]">
+                        {/* Search Bar */}
+                        <div className="p-3 border-b border-slate-900">
+                            <div className="relative">
+                                <input 
+                                    type="text" 
+                                    placeholder="Search Memory Stream..." 
+                                    className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-2 pl-8 text-xs text-slate-300 focus:border-cyan-500/50 focus:outline-none"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                                <span className="material-symbols-outlined absolute left-2 top-2 text-slate-600 text-sm">search</span>
+                            </div>
+                        </div>
+
+                        {/* List Stream */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
+                            {filteredList.length === 0 && (
+                                <div className="text-center text-slate-600 text-xs py-10 italic">No memories found.</div>
+                            )}
+                            {filteredList.map(node => (
+                                <div 
+                                    key={node.id}
+                                    id={`mem-item-${node.id}`}
+                                    onClick={() => setSelectedNodeId(node.id)}
+                                    className={`p-3 rounded border cursor-pointer transition-all ${
+                                        selectedNodeId === node.id 
+                                        ? 'bg-slate-800 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.1)]' 
+                                        : 'bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                                    }`}
+                                >
+                                    <div className="flex justify-between items-center mb-1">
+                                        <div className="flex items-center space-x-2">
+                                            <span className={`w-1.5 h-1.5 rounded-full ${
+                                                node.metadata.type === 'IDENTITY' ? 'bg-purple-500' :
+                                                node.metadata.type === 'USER_CONTEXT' ? 'bg-cyan-500' : 'bg-green-500'
+                                            }`}></span>
+                                            <span className={`text-[9px] font-bold ${
+                                                node.metadata.type === 'IDENTITY' ? 'text-purple-400' :
+                                                node.metadata.type === 'USER_CONTEXT' ? 'text-cyan-400' : 'text-green-400'
+                                            }`}>{node.metadata.type}</span>
+                                        </div>
+                                        <span className="text-[8px] text-slate-600 font-mono">
+                                            {new Date(node.metadata.timestamp).toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div className="text-xs text-slate-300 leading-relaxed line-clamp-3 font-mono">
+                                        {node.pageContent}
+                                    </div>
+                                    {selectedNodeId === node.id && (
+                                        <div className="mt-2 pt-2 border-t border-slate-700/50 flex justify-between text-[9px] text-slate-500">
+                                            <span>Logic: {(node.metadata.logicScore * 100).toFixed(0)}%</span>
+                                            <span>{node.metadata.source.substring(0, 15)}...</span>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>

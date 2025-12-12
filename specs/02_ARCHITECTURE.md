@@ -1,58 +1,57 @@
 
-# 02. SYSTEM ARCHITECTURE (시스템 아키텍처)
+# 02. SYSTEM ARCHITECTURE (BLUEPRINT)
 
-> **Design Pattern:** Client-Side Orchestration with Hyper-Graph Grid
+> **Pattern:** Client-Side Orchestration with Hyper-Graph Grid.
+> **Constraint:** Zero-Backend (No dedicated server).
 
-## 1. 하이퍼-그래프 구조 (The Hyper-Graph)
-시스템은 중앙 서버 없이, 사용자의 브라우저(Client)가 중심이 되어 여러 노드를 연결하는 구조입니다.
+## 1. THE STACK
+- **Core:** React 18 (Strict Mode).
+- **State:** React Hooks + LocalStorage (KV Cache).
+- **Brain (LLM):** Gemini 3 Pro Preview / Flash.
+- **Hippocampus (Embeddings):** `text-embedding-004` (Google API).
+- **Compute:** Google Colab (via Drive Bridge).
+
+## 2. THE OPAL PATTERN (Orchestration of Platforms)
+Inspired by the "Opal" architecture, ZIA unifies three Google services into a single "Anti-gravity" engine:
+1.  **Drive (Storage):** The persistent file system and message bus.
+2.  **Colab (Compute):** The execution runtime for heavy Python/Math tasks.
+3.  **n8n (Workflow):** The automation layer connecting external APIs.
+ZIA acts as the **Conductor** of this trio, living entirely in the user's browser.
+
+## 3. MEMORY HIERARCHY (The Attention Engine)
+The system operates like a Transformer Model extended to the OS level.
+
+1.  **Working Memory (RAM):**
+    - The current React State (`messages`).
+    - Holds the "Context Window" of the immediate conversation.
+2.  **KV Cache (IndexedDB/LocalStorage):**
+    - Stores pre-computed Embedding Vectors ($K$) and Contents ($V$).
+    - Allows $O(1)$ or $O(N)$ fast vector operations without re-embedding.
+3.  **Long-Term Storage (Drive/ChromaDB):**
+    - Infinite archival storage.
+    - Accessed only when "Attention Score" drops below threshold (Needs deep retrieval).
+
+## 4. THE BRIDGE (MAILBOX PATTERN)
+Direct WebSocket is blocked by Colab CSP. We use the **Drive File System** as a high-latency Message Bus.
 
 ```mermaid
-graph TD
-    User[User Input] --> Refiner[Receptionist (Gemini Flash)]
-    
-    subgraph "Input Refiner Layer"
-        Refiner -- "Ambiguous?" --> Question[Ask Clarification]
-        Refiner -- "Clear?" --> Optimizer[Prompt Optimizer (KR->EN)]
+sequenceDiagram
+    participant Browser (ZIA)
+    participant Drive (Bus)
+    participant Colab (Worker)
+
+    Browser->>Drive: POST /req_task_id.json (Payload)
+    Note right of Drive: "Pending State"
+    loop Polling (1s)
+        Colab->>Drive: LIST req_*.json
     end
-    
-    Question --> User
-    Optimizer --> Core[ZIA Core (Gemini Pro)]
-    
-    subgraph "Local Resources"
-        LocalGPU[Local PC / GPU]
-        LocalSto[LocalStorage / IndexedDB]
-    end
-    
-    subgraph "Cloud Resources"
-        Drive[Google Drive (Long-term Memory & Bridge)]
-        Colab[Google Colab (Compute Engine)]
-        Kaggle[Kaggle Kernels (Data Source)]
-    end
-    
-    Core <-->|Bridge App| LocalGPU
-    Core <-->|OAuth 2.0 (GIS)| Drive
-    Drive <-->|Mailbox Pattern (JSON I/O)| Colab
-    Colab -.->|Kaggle API| Kaggle
+    Colab->>Colab: Process (Python/ChromaDB)
+    Colab->>Drive: POST /res_task_id.json (Result)
+    Browser->>Drive: LIST res_*.json
+    Browser->>Browser: Update UI
+    Browser->>Drive: DELETE /res_task_id.json
 ```
 
-## 2. 핵심 모듈 (Core Modules)
-
-### 2.1. The Receptionist (접수원 프로토콜)
-- **목적:** 비전문가(Non-expert) 사용자를 위한 프롬프트 자동 최적화 및 비용 절감.
-- **기능:**
-  - 사용자 입력의 의도(감정, 작업, 정보) 파악.
-  - 모호한 입력에 대해 **역질문(Clarification Loop)** 수행.
-  - 한국어 입력을 LLM 친화적인 **영어 기술 명세(Technical English)**로 변환.
-
-### 2.2. Memory Orchestrator (기억 지휘자)
-- 3계층 기억(Identity, User, World)을 관리하고 라우팅합니다.
-- FDE(Fixed Dimensional Encoding)를 통해 기억을 압축 저장합니다.
-
-### 2.3. Compute Swarm (연산 스웜)
-- **Drive Bridge Pattern:** Colab과의 직접 통신 대신 구글 드라이브를 메시지 큐(Message Queue)로 활용하여 보안 제약을 우회하고 안정적인 연산을 수행합니다.
-- **Kaggle Integration:** Colab을 프록시로 사용하여 Kaggle 데이터셋에 접근합니다.
-
-## 3. 데이터 흐름 (Data Flow)
-1.  **Refinement:** 사용자 입력 -> Receptionist 분석 -> (역질문) -> 최적화된 프롬프트 생성.
-2.  **Process:** 최적화된 프롬프트 -> FDE 엔진 압축 -> 오케스트레이터가 관련 기억 검색(RAG) -> LLM 추론.
-3.  **Output:** 답변 생성 + 기억(World Knowledge) 업데이트 -> (옵션) 스웜 공유.
+## 5. SECURITY (ZERO TRUST)
+- **Token Handling:** Access Tokens exist ONLY in memory. Never persisted to disk.
+- **Isolation:** Python code runs in Colab Sandbox, not on the User's machine.
