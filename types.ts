@@ -1,6 +1,6 @@
 
 // ZIA SYSTEM TYPES
-import { MemoryType } from './memory_orchestrator';
+import { MemoryType } from './02_CORTEX/memory_orchestrator';
 
 export interface Message {
   id: string;
@@ -38,8 +38,8 @@ export interface UserEnvironment {
 }
 
 export interface SystemDNA {
-  layoutMode: 'STANDARD' | 'CODER' | 'WRITER' | 'MINIMAL';
-  themeColor: 'cyan' | 'emerald' | 'rose' | 'violet';
+  layoutMode: 'STANDARD' | 'CODER' | 'WRITER' | 'MINIMAL' | 'FOCUS';
+  themeColor: 'cyan' | 'emerald' | 'rose' | 'violet' | 'amber';
   aiPersona: 'ANALYTICAL' | 'EMPATHETIC' | 'CREATIVE';
   generation: number;
 }

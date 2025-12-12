@@ -1,15 +1,17 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface ArtifactCanvasProps {
     isOpen: boolean;
     content: string | null;
-    visualArtifact?: { image?: string; html?: string }; // New Prop
+    visualArtifact?: { image?: string; html?: string };
     onClose: () => void;
+    onSignal?: (type: string, payload: any) => void; // Bridge to Kernel
 }
 
-export const ArtifactCanvas: React.FC<ArtifactCanvasProps> = ({ isOpen, content, visualArtifact, onClose }) => {
+export const ArtifactCanvas: React.FC<ArtifactCanvasProps> = ({ isOpen, content, visualArtifact, onClose, onSignal }) => {
     const [viewMode, setViewMode] = useState<'CODE' | 'PREVIEW'>('PREVIEW');
+    const iframeRef = useRef<HTMLIFrameElement>(null);
 
     // Auto-switch to preview if visual artifact exists
     useEffect(() => {
@@ -20,6 +22,39 @@ export const ArtifactCanvas: React.FC<ArtifactCanvasProps> = ({ isOpen, content,
         }
     }, [visualArtifact]);
 
+    // [FRACTAL SANDBOX PROTOCOL]
+    // Listen for messages from the iframe (Micro-App)
+    useEffect(() => {
+        const handleMessage = (event: MessageEvent) => {
+            // Security: In production, check event.origin
+            if (!event.data || typeof event.data !== 'object') return;
+            
+            const { type, ...payload } = event.data;
+            if (type?.startsWith('ZIA_') && onSignal) {
+                console.log(`[ArtifactCanvas] Signal Received: ${type}`, payload);
+                onSignal(type, payload);
+            }
+        };
+
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
+    }, [onSignal]);
+
+    // Inject the ZIA Client SDK into the HTML
+    const getSandboxedSrc = (rawHtml: string) => {
+        const sdkScript = `
+            <script>
+                window.ZIA = {
+                    save: (key, value) => window.parent.postMessage({ type: 'ZIA_SAVE', key, value }, '*'),
+                    say: (text) => window.parent.postMessage({ type: 'ZIA_SAY', text }, '*'),
+                    compute: (code) => window.parent.postMessage({ type: 'ZIA_COMPUTE', code }, '*')
+                };
+                console.log("[Micro-App] ZIA SDK Injected.");
+            </script>
+        `;
+        return rawHtml + sdkScript;
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -27,7 +62,7 @@ export const ArtifactCanvas: React.FC<ArtifactCanvasProps> = ({ isOpen, content,
             {/* Header */}
             <div className="h-10 border-b border-slate-800 flex items-center justify-between px-4 bg-slate-900">
                 <div className="flex items-center space-x-4">
-                    <span className="text-xs font-bold text-slate-300">ARTIFACT CANVAS</span>
+                    <span className="text-xs font-bold text-slate-300">ARTIFACT CANVAS (SANDBOX)</span>
                     <div className="flex bg-slate-950 rounded p-0.5 border border-slate-800">
                         <button 
                             onClick={() => setViewMode('CODE')}
@@ -58,9 +93,11 @@ export const ArtifactCanvas: React.FC<ArtifactCanvasProps> = ({ isOpen, content,
                             </div>
                         ) : visualArtifact?.html ? (
                             <iframe 
-                                srcDoc={visualArtifact.html} 
+                                ref={iframeRef}
+                                srcDoc={getSandboxedSrc(visualArtifact.html)}
                                 className="w-full h-full bg-white rounded border-none"
-                                sandbox="allow-scripts"
+                                sandbox="allow-scripts allow-forms allow-popups allow-modals"
+                                title="ZIA Micro-App"
                             />
                         ) : (
                             <div className="text-slate-600 text-xs italic flex flex-col items-center">

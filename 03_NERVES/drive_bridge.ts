@@ -1,5 +1,5 @@
 
-// ZIA GOOGLE DRIVE BRIDGE v1.6
+// ZIA GOOGLE DRIVE BRIDGE v2.0 (FILE SYSTEM DRIVER)
 // [LOCATION]: 03_NERVES/drive_bridge.ts
 
 export interface DriveAuthStatus {
@@ -22,6 +22,7 @@ export class DriveBridge {
             // @ts-ignore
             this.tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: clientId,
+                // Requesting FULL Drive access to act as an OS File System
                 scope: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/cloud-platform', 
                 callback: (tokenResponse: any) => {
                     this.accessToken = tokenResponse.access_token;
@@ -70,6 +71,28 @@ export class DriveBridge {
         } catch (e: any) { throw e; }
     }
 
+    // --- FILE SYSTEM OPERATIONS (OS LEVEL) ---
+
+    // [NEW] Global Search (Not restricted to system folder)
+    public async globalSearch(query: string, limit: number = 10) {
+        if (!this.accessToken) return [];
+        // Search in name or fullText, exclude trashed
+        const q = `(name contains '${query}' or fullText contains '${query}') and trashed=false`;
+        const res = await this.fetchDriveAPI(`files?q=${encodeURIComponent(q)}&pageSize=${limit}&fields=files(id,name,mimeType,modifiedTime,size)`);
+        return res.files || [];
+    }
+
+    // [NEW] Read Any Text File
+    public async readTextFile(fileId: string): Promise<string> {
+        if (!this.accessToken) throw new Error("Not Connected");
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: new Headers({ 'Authorization': `Bearer ${this.accessToken}` })
+        });
+        if (!res.ok) throw new Error(`Read Failed: ${res.statusText}`);
+        return await res.text();
+    }
+
+    // System Folder Operations (Swarm/Memory)
     public async saveFile(fileName: string, content: object) {
         if (!this.accessToken) throw new Error("Not Connected");
         if (!this.folderId) await this.ensureSystemFolder();
